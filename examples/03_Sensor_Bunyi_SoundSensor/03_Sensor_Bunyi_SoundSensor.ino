@@ -13,7 +13,6 @@ const int PIN_SOUND = A2;
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial) { ; }
     AzureIoT.begin();
 }
 

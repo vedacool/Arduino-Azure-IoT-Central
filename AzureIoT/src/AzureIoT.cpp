@@ -1,6 +1,7 @@
 #include "AzureIoT.h"
 #include <WiFiNINA.h>
 #include <PubSubClient.h>
+#include <string.h>
 #include "config.h"
 #include "sas_token.h"
 #include "dps_client.h"

@@ -14,7 +14,6 @@ const int PIN_TEMPERATURE = A0;
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial) { ; }
     AzureIoT.begin();
 }
 

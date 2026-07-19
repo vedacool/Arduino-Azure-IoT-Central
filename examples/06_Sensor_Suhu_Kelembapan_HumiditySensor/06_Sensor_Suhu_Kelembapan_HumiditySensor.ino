@@ -22,7 +22,6 @@ DHT dht(PIN_HUMIDITY, DHT11);
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial) { ; }
     dht.begin();
     AzureIoT.begin();
 }

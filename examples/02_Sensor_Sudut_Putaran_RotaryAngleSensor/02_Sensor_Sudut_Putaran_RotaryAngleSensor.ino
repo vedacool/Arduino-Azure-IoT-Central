@@ -16,7 +16,6 @@ const float GROVE_VCC = 5.0f;
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial) { ; }
     AzureIoT.begin();
 }
 

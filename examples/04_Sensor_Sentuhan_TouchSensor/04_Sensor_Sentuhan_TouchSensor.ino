@@ -13,7 +13,6 @@ const int PIN_TOUCH = 3;
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial) { ; }
     pinMode(PIN_TOUCH, INPUT);
     AzureIoT.begin();
 }

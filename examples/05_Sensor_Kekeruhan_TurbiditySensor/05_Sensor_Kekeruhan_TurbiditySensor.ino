@@ -13,7 +13,6 @@ const int PIN_TURBIDITY = A3;
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial) { ; }
     AzureIoT.begin();
 }
 
