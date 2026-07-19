@@ -27,6 +27,7 @@
 #include "config.h"
 #include "sas_token.h"
 #include "dps_client.h"
+#include "sensors.h"
 
 WiFiSSLClient wifiClient;
 PubSubClient mqttClient(wifiClient);
@@ -38,17 +39,27 @@ unsigned long g_sasTokenExpiry = 0;
 
 unsigned long g_lastSensorReadMillis = 0;
 
-// ---- sensor state (Grove peripherals from Modules 2 & 4) ----
-const int PIN_TEMP = A0;
-float g_temperature = 0.0f;
+// One slot per possible sensor in g_sensorTable (see sensors.h/.cpp). Sized
+// generously; bump it if you ever wire up more than 16 sensors at once.
+struct SensorSample { const char *key; float value; };
+static SensorSample g_lastSamples[16];
+static size_t g_lastSampleCount = 0;
 
 static void connectWiFi() {
-    Serial.print("Connecting to WiFi: ");
-    Serial.println(WIFI_SSID);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
+    while (true) {
+        Serial.print("Connecting to WiFi: ");
+        Serial.println(WIFI_SSID);
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+        unsigned long start = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - start < WIFI_CONNECT_TIMEOUT_MS) {
+            delay(500);
+            Serial.print(".");
+        }
+        if (WiFi.status() == WL_CONNECTED) break;
+
+        Serial.println();
+        Serial.println("WiFi connect timed out -- check WIFI_SSID/WIFI_PASSWORD in config.h. Retrying...");
     }
     Serial.println();
     Serial.print("WiFi connected, IP: ");
@@ -117,27 +128,51 @@ static bool connectMqtt() {
 }
 
 static void readSensors() {
-    // Thermistor on A0, same math as Module 4's temperature sensor code,
-    // kept because it's already correct -- just moved out of String-based
-    // payload building.
-    const int B = 4275;
-    const long R0 = 100000;
-    int a = analogRead(PIN_TEMP);
-    float R = 1023.0f / (float)a - 1.0f;
-    R = (float)R0 * R;
-    g_temperature = 1.0f / (log(R / (float)R0) / B + 1.0f / 298.15f) - 273.15f;
+    g_lastSampleCount = 0;
+    for (size_t i = 0; i < g_sensorCount && g_lastSampleCount < 16; i++) {
+        float value;
+        if (g_sensorTable[i].read(&value)) {
+            g_lastSamples[g_lastSampleCount].key = g_sensorTable[i].jsonKey;
+            g_lastSamples[g_lastSampleCount].value = value;
+            g_lastSampleCount++;
+        }
+        // else: this sensor's reading looked invalid this cycle -- skip it
+        // rather than publish garbage. It'll be tried again next cycle.
+    }
+}
+
+// Appends `,"key":value` (or `"key":value` if first) to buf, tracking
+// remaining space by hand -- same fixed-buffer, no-heap-allocation approach
+// as the rest of this sketch. Returns false if it didn't fit (caller should
+// stop appending further fields at that point).
+static bool appendField(char *buf, size_t bufCap, size_t *pos, bool first,
+                         const char *key, float value) {
+    int n = snprintf(buf + *pos, bufCap - *pos, "%s\"%s\":%.2f",
+                      first ? "" : ",", key, value);
+    if (n < 0 || (size_t)n >= bufCap - *pos) return false;
+    *pos += (size_t)n;
+    return true;
 }
 
 static void publishTelemetry() {
+    if (g_lastSampleCount == 0) return; // nothing valid to send this cycle
+
     char topic[96];
     snprintf(topic, sizeof(topic), "devices/%s/messages/events/", g_deviceId);
 
-    char payload[96];
-    // Fixed-precision snprintf instead of String concatenation/replace --
-    // smaller, faster, and doesn't fragment the heap over a multi-hour run.
-    int n = snprintf(payload, sizeof(payload), "{\"temperature\":%.2f}", g_temperature);
+    char payload[220];
+    size_t pos = 0;
+    payload[pos++] = '{';
+    for (size_t i = 0; i < g_lastSampleCount; i++) {
+        if (!appendField(payload, sizeof(payload), &pos, i == 0,
+                          g_lastSamples[i].key, g_lastSamples[i].value)) {
+            break; // ran out of room -- publish what fit rather than nothing
+        }
+    }
+    payload[pos++] = '}';
+    payload[pos] = '\0';
 
-    if (mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)n)) {
+    if (mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)pos)) {
         Serial.print("Published: ");
         Serial.println(payload);
     } else {
@@ -165,7 +200,11 @@ void loop() {
     }
 
     if (!mqttClient.connected()) {
-        connectMqtt();
+        static unsigned long lastAttempt = 0;
+        if (millis() - lastAttempt > MQTT_RECONNECT_COOLDOWN_MS) {
+            lastAttempt = millis();
+            connectMqtt();
+        }
     }
     mqttClient.loop();
 

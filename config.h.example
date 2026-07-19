@@ -22,4 +22,39 @@ static const unsigned long SAS_TOKEN_LIFETIME_SECS = 3600UL;
 // Sensor read cadence
 static const unsigned long SENSOR_READ_INTERVAL_MS = 5000UL;
 
+// How long to wait for one WiFi.begin() attempt before retrying (ms).
+static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000UL;
+
+// Minimum time between MQTT reconnect attempts when disconnected (ms) --
+// stops loop() from hammering Azure with reconnects if the network is down.
+static const unsigned long MQTT_RECONNECT_COOLDOWN_MS = 5000UL;
+
+// ---------------------------------------------------------------------
+// Sensors -- see sensors.h/.cpp. Set to 1 to include a sensor, 0 to leave
+// it out entirely (saves flash/RAM, and avoids needing a library you're
+// not using). Reassign pins freely; the only constraint is not using the
+// same pin for two sensors at once.
+//
+// These map to the Grove modules from Modules 2 & 4 of the workshop.
+// ---------------------------------------------------------------------
+#define ENABLE_SENSOR_TEMPERATURE  1
+#define PIN_TEMPERATURE            A0
+
+#define ENABLE_SENSOR_ROTARY_ANGLE 0
+#define PIN_ROTARY_ANGLE           A1
+
+#define ENABLE_SENSOR_SOUND        0
+#define PIN_SOUND                  A2
+
+#define ENABLE_SENSOR_TOUCH        0
+#define PIN_TOUCH                  3
+
+#define ENABLE_SENSOR_TURBIDITY    0
+#define PIN_TURBIDITY              A3
+
+// Needs the Seeed "Grove Temperature And Humidity Sensor" library -- see
+// the comment above read_humidity() in sensors.cpp before enabling this.
+#define ENABLE_SENSOR_HUMIDITY     0
+#define PIN_HUMIDITY               2
+
 #endif

@@ -1,63 +1,137 @@
-# uno_wifi_azure — Arduino Uno WiFi Rev2 → Azure IoT Central
+# Arduino Uno WiFi Rev2 → Azure IoT Central
 
-Replacement for firedog1024/arduino-uno-wifi-iotc + Azure/dps-keygen.
+Connects your board straight to Azure IoT Central — no PC-side tools, no editing library files. Replaces the older `firedog1024/arduino-uno-wifi-iotc` + `Azure/dps-keygen` approach (the latter is archived and its connection-string feature stopped working in 2020).
 
-## What's different from the GitHub version
+---
 
-| | Old (firedog1024 + dps-keygen) | This sketch |
-|---|---|---|
-| Getting the IoT Hub connection string | PC tool (`dps_cstr.exe`) — **archived, dead since Jan 2020** | Device provisions itself via DPS over HTTPS at boot. No PC tool. |
-| Survives IoT Central reassigning the device to a different hub | No — hardcoded hostname goes stale | Yes — re-provisions and gets the current hub every boot |
-| MQTT buffer size | Slides tell you to hand-edit `PubSubClient.h` | `setBufferSize()` call (supported since PubSubClient v2.8) — no library edits |
-| String handling | `String` concatenation/replace for JSON payloads | Fixed `char` buffers + `snprintf` — no heap fragmentation over a multi-hour run |
-| Crypto | Bundled, unreviewed SHA-256/base64/HMAC | Same algorithms, but verified byte-for-byte against Python's `hashlib`/`hmac` (see Verification below) |
+## Start here
+
+Follow these in order. Each one only needs to be done once.
+
+### 1. Get your Azure IoT Central device credentials
+
+In your IoT Central app: **Devices → your device → Connect**. You'll need three values:
+- **ID scope**
+- **Device ID**
+- **Primary key** (or a computed device key, if you're using a group enrollment)
+
+### 2. Upload Azure's TLS certificate to your board
+
+This step can't be done from the sketch — it has to happen once via the Arduino IDE, and it's the single most common reason a fresh Azure/Arduino project fails to connect.
+
+1. Arduino IDE → **Tools → WiFiNINA Firmware/Certificates Updater**
+2. Add domain → type `global.azure-devices-provisioning.net` → Upload
+3. (You'll add one more domain after Step 5 below — the sketch tells you which one.)
+
+### 3. Install the required libraries
+
+Arduino IDE → **Sketch → Include Library → Manage Libraries**, install:
+- `WiFiNINA`
+- `PubSubClient` (must be v2.8 or newer — check the version shown in Library Manager)
+
+### 4. Set up your config file
+
+In this folder, copy `config.h.example` to a new file named `config.h`, then edit it:
+- `WIFI_SSID` / `WIFI_PASSWORD` — your Wi-Fi credentials
+- `IOTC_ID_SCOPE` / `IOTC_DEVICE_ID` / `IOTC_DEVICE_KEY` — from Step 1
+- Leave everything else at its default for now
+
+**`config.h` is deliberately left out of git** (check `.gitignore`) so your real Wi-Fi password and Azure key never end up committed anywhere. Only `config.h.example`, with placeholder values, is tracked.
+
+### 5. Upload and check the Serial Monitor
+
+Open `uno_wifi_azure.ino`, select **Tools → Board → Arduino Uno WiFi Rev2** and the right port, then Upload. Open **Tools → Serial Monitor** at **115200 baud**. You should see:
+
+```
+Connecting to WiFi: ...
+WiFi connected, IP: ...
+Waiting for network time...
+Provisioning via DPS...
+Assigned hub: iotc-xxxxxxxx-....azure-devices.net
+Connecting to MQTT as ...
+MQTT connected.
+Published: {"temperature":23.45}
+```
+
+Copy that **"Assigned hub"** hostname, go back to the Certificates Updater from Step 2, add that domain too, and re-upload the sketch. From this point on it'll keep working even if IoT Central ever reassigns you to a different hub — the sketch re-provisions on every boot.
+
+### 6. Check the data is arriving in IoT Central
+
+IoT Central → **Devices → your device → View** — you should see the `temperature` field updating every 5 seconds.
+
+**If something's not working**, see [Troubleshooting](#troubleshooting) below before assuming the code is broken.
+
+---
+
+## Adding your own sensors
+
+This is the part built for the workshop's "sensors" projects — adding a sensor takes two small edits in `sensors.cpp`, and nothing else in the project needs to change.
+
+**Turning on a sensor that's already built in** (temperature, rotary angle, sound, touch, turbidity — matching the Grove modules from Modules 2 & 4): open `config.h` and flip its `ENABLE_SENSOR_*` flag to `1`, e.g.:
+
+```c
+#define ENABLE_SENSOR_ROTARY_ANGLE 1
+#define PIN_ROTARY_ANGLE           A1
+```
+
+That's it — re-upload, and `rotaryAngle` will start appearing in the published JSON alongside whatever else is enabled. Disabled sensors cost zero flash/RAM; they're compiled out entirely.
+
+**Adding a brand-new sensor** — two edits in `sensors.cpp`:
+
+1. Write a read function, following the same pattern as the ones already there:
+   ```c
+   static bool read_mySensor(float *out) {
+       int raw = analogRead(PIN_MY_SENSOR);
+       *out = /* your conversion math */;
+       return true; // return false instead if the reading looks invalid
+   }
+   ```
+2. Add one line to `g_sensorTable[]` at the bottom of the same file:
+   ```c
+   { "mySensorKey", read_mySensor },
+   ```
+
+That's the entire integration. You don't touch `uno_wifi_azure.ino`, the MQTT code, or the SAS-token code — the payload builder reads `g_sensorTable` generically and publishes whatever's in it as `{"mySensorKey": value, ...}`.
+
+Full sensor list, pins, and enable flags live in `config.h.example`. The DHT11 humidity/temperature sensor needs one extra library (noted in a comment right above `read_humidity()` in `sensors.cpp`) since Azure/MQTT itself doesn't need it — only that specific sensor does.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Hangs at "Connecting to WiFi" with dots forever, then retries | Wrong `WIFI_SSID`/`WIFI_PASSWORD` in `config.h`, or board out of range |
+| "DPS provisioning FAILED" | Wrong `IOTC_ID_SCOPE`/`IOTC_DEVICE_ID`/`IOTC_DEVICE_KEY`, **or** you haven't done Step 2 (TLS certificate) yet |
+| Provisioning succeeds but "MQTT connect failed, rc=..." | You haven't added the *assigned hub's* domain to the Certificates Updater yet (see end of Step 5) |
+| Nothing appears in IoT Central even though Serial shows "Published: ..." | Check the device is using the same device template/capability model your dashboard expects — a raw JSON key like `temperature` needs a matching capability in IoT Central for the dashboard to render it |
+| Board resets or hangs after running for a while | See "Known limitations" below — this hasn't been endurance-tested on real hardware yet |
+
+---
 
 ## Files
 
-- `uno_wifi_azure.ino` — setup/loop, WiFi connect, sensor read, MQTT publish
-- `dps_client.h/.cpp` — on-device DPS registration (PUT + poll, per Microsoft's documented REST API)
-- `sas_token.h/.c` — builds the Azure SAS token string
-- `sha256.h/.c`, `b64url.h/.c` — SHA-256, HMAC-SHA256, base64, URL-encoding (the crypto primitives SAS tokens need)
-- `config.h.example` — copy this to `config.h` and fill in your Wi-Fi and IoT Central device credentials. **`config.h` itself is gitignored on purpose — see the audit below.**
+| File | What it's for |
+|---|---|
+| `uno_wifi_azure.ino` | Setup/loop: WiFi connect, provisioning, MQTT connect, publish cycle |
+| `config.h.example` | Template — copy to `config.h` and fill in your credentials |
+| `sensors.h` / `sensors.cpp` | **Edit this to add sensors.** Table-driven: one function + one table row per sensor |
+| `dps_client.h` / `dps_client.cpp` | On-device DPS registration (replaces the PC-side `dps-keygen` tool) |
+| `sas_token.h` / `sas_token.c` | Builds the Azure SAS token string |
+| `sha256.h`/`.c`, `b64url.h`/`.c` | SHA-256, HMAC-SHA256, base64, URL-encoding — the crypto primitives SAS tokens need |
 
-## One manual step you still have to do (can't be done from the sketch)
+---
 
-Azure completed its move to the **DigiCert Global Root G2** TLS certificate in September 2024. The WiFiNINA module validates TLS using certificates you've explicitly uploaded to it — it does not ship with Azure's current root pre-loaded. Before this sketch can connect:
+## Known limitations (read before a long unattended run)
 
-1. Arduino IDE → **Tools → WiFiNINA Firmware/Certificates Updater**
-2. Add these domains, then upload:
-   - `global.azure-devices-provisioning.net`
-   - your assigned hub's hostname (find it by running the sketch once — it prints "Assigned hub: ..." to Serial — then re-run the certificate updater and add that domain too)
+- **Peak stack depth** during DPS provisioning is roughly 1.2–1.5KB on a board with 6KB total SRAM. It's been verified to compile and run correctly in a simulated test, but not endurance-tested on real hardware yet — worth keeping an eye on if you add several more sensors or a much longer device key.
+- **No watchdog timer.** If the board ever hangs (e.g. an unusual network edge case), it stays hung until manually power-cycled.
+- **`extractJsonString()`** (in `dps_client.cpp`) is a lightweight substring search, not a full JSON parser. It matches Azure's documented DPS response format but isn't robust to Azure changing that format's structure.
+- The board's **ATECC608 crypto chip goes unused** — authentication here is a software-computed SAS token (symmetric key), not the hardware-backed X.509 approach the chip is designed for. That'd be a bigger redesign.
 
-Skipping this step is the single most likely reason a from-scratch Azure/Arduino sketch fails to connect, independent of anything else here.
+## What's been verified (and how)
 
-## Verification performed (and what wasn't)
-
-**Verified — cryptographic core.** `sha256.c`/`b64url.c`/`sas_token.c` were compiled standalone on x86 and checked against:
-- NIST test vector `SHA256("abc")`
-- RFC 4231 HMAC-SHA256 Test Case 2
-- A byte-for-byte comparison of the full SAS-token string against an independent Python (`hashlib`/`hmac`/`base64`) implementation of Azure's documented algorithm, across 16 randomized (key, hub, device, expiry) combinations across two test rounds, including >64-byte keys (the trickiest edge case in HMAC). All matched exactly.
-
-**Verified — API usage.** Every WiFiNINA/PubSubClient call in the sketch was checked against the actual current library source (cloned from `arduino-libraries/WiFiNINA` and `knolleary/pubsubclient`) to confirm the method signatures exist and match.
-
-**Verified — compiles and runs end-to-end.** The full, unmodified sketch source was compiled and linked against hand-written mocks whose method signatures were copied from the real libraries, then run.
-
-**Not verified — and can't be, in this environment.** No physical Arduino Uno WiFi Rev2, no real Azure IoT Central credentials, and the Arduino-specific `atmega4809` compiler device pack is only distributed through Arduino's own Board Manager download server, which this sandbox can't reach. Compile it once in the real Arduino IDE and test DPS against one real device before the workshop.
-
-## Post-push code audit (fixed)
-
-A full read-through after the first push found and fixed four real issues:
-
-1. **Buffer overflow in `base64_decode`.** The original signature had no output-capacity parameter — it decoded and wrote as many bytes as the input implied, and the caller's size check happened *after* the write. A key pasted into `config.h` that was much longer than expected (e.g. a whole connection string dropped in by mistake instead of just the key) would have overflowed a 128-byte stack buffer. Fixed by adding an `out_cap` parameter that the function now enforces, returning 0 (and writing nothing further) if the decoded output wouldn't fit. Re-verified with `-fstack-protector-all` and a 500-byte garbage-key test: it now fails cleanly instead of writing past the buffer.
-2. **`String` usage in `dps_client.cpp`'s HTTP response parsing** contradicted the sketch's own stated no-heap-allocation design (every `readStringUntil()` call allocates). Replaced with a fixed-buffer line reader (`readLine()`), consistent with the rest of the sketch. Also fails faster and more predictably on a bad/slow connection than the old `String`-based version did in testing.
-3. **Dead config constant.** `config.h` defined `DPS_GLOBAL_HOST`, but `dps_client.cpp` silently ignored it and hardcoded its own private copy of the same string. Harmless today (both were identical), but meant that pointing this at Azure Government or Azure China's different DPS endpoints would have had no effect. Fixed — there's now exactly one definition.
-4. **`config.h` was tracked in git.** It only held placeholder values, but the moment a student fills in a real Wi-Fi password and Azure device key and runs `git add -A` (a very normal thing to do while iterating), those credentials would be committed. Renamed the tracked file to `config.h.example` and removed `config.h` from tracking (`git rm --cached`), with the actual `config.h` now gitignored.
-
-**Flagged, not changed (judgment calls for you, not bugs):**
-- **Peak stack depth.** `dpsProvision()` → `build_sas_token()` → `hmac_sha256()` stacks roughly 1.2–1.5KB of local buffers at their deepest point, on a board with 6KB total SRAM. It ran fine in the mocked test, but there's no headroom measurement on real hardware yet — worth checking `freeMemory()`-style diagnostics during your first real test.
-- **No backoff on MQTT reconnect.** If Wi-Fi/Azure is down for a while, `loop()` retries the MQTT connect on every iteration with no cooldown. Fine for a workshop, worth adding a delay if this ever runs unattended for days.
-- **No watchdog timer**, and `connectWiFi()`'s Wi-Fi-connect loop has no timeout — wrong SSID/password means it spins on dots forever rather than failing visibly.
-- **`readSensors()` doesn't guard against `analogRead()` returning 0** (division by zero → the thermistor math degrades to a non-crashing but meaningless value rather than an error). Inherited from the original workshop slides' sensor code, not introduced here.
-- **`extractJsonString()` is a substring search, not a real JSON parser.** It works for the DPS response shape observed in Microsoft's documented examples, but isn't robust if Azure ever nests fields differently.
-- The board's **ATECC608 crypto chip goes unused** — this design does the SAS-token HMAC in software. Using the chip for X.509-based auth instead of a symmetric-key SAS token would be more secure but is a bigger redesign, out of scope here.
-
+- **Crypto core** (`sha256.c`/`b64url.c`/`sas_token.c`): checked against NIST/RFC test vectors and, separately, byte-for-byte against an independent Python (`hashlib`/`hmac`/`base64`) implementation of Azure's documented SAS-token algorithm across 16 randomized cases.
+- **API usage**: every WiFiNINA/PubSubClient call checked against the actual current library source.
+- **Compiles, links, and runs end-to-end**: the full sketch source (all sensors, all code paths) was compiled and linked against signature-accurate mocks of the real libraries and run — this process caught and fixed a real buffer-overflow bug in `base64_decode`, a missing `#include`, and missing `extern "C"` linkage guards, before any of it touched real hardware.
+- **What's not verified**: real hardware, real Azure credentials, and the exact `atmega4809` compiler device pack (only available through Arduino's own Board Manager download, unreachable from the sandbox this was built in). Compile it once for real and test against one real device before relying on it for a group of students.
