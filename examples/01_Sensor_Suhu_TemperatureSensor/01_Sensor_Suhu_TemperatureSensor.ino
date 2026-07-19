@@ -4,8 +4,9 @@
 // Azure IoT Central via the AzureIoT library.
 //
 // Setup: edit config.h in this folder with your
-// Wi-Fi + Azure credentials before uploading. See the AzureIoT library's
-// main README for the one-time TLS certificate upload step.
+// Wi-Fi + Azure credentials before uploading. If you're on a Uno WiFi Rev2,
+// see the AzureIoT library's main README for the one-time TLS certificate
+// upload step (not needed on ESP32).
 
 #include <AzureIoT.h>
 #include "config.h"
