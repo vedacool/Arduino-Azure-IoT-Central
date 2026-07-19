@@ -13,7 +13,7 @@ const int PIN_TURBIDITY = A3;
 
 void setup() {
     Serial.begin(115200);
-    AzureIoT.begin();
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
 }
 
 void loop() {

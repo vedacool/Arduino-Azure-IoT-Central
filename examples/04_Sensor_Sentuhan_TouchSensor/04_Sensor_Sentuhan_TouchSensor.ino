@@ -14,7 +14,7 @@ const int PIN_TOUCH = 3;
 void setup() {
     Serial.begin(115200);
     pinMode(PIN_TOUCH, INPUT);
-    AzureIoT.begin();
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
 }
 
 void loop() {

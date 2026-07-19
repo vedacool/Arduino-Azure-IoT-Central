@@ -2,7 +2,6 @@
 #include "platform.h"
 #include <PubSubClient.h>
 #include <string.h>
-#include "config.h"
 #include "sas_token.h"
 #include "dps_client.h"
 #include "reset.h"
@@ -10,8 +9,35 @@
 static SecureWiFiClient s_wifiClient;
 static PubSubClient s_mqttClient(s_wifiClient);
 
+// ---------------------------------------------------------------------
+// Credentials, copied in by begin() (see AzureIoT.h for why this library
+// takes them as arguments instead of reading a sketch-local config.h
+// itself). Sized generously: SSID (802.11 max 32 bytes), WPA2 passphrase
+// (max 63 bytes), DPS ID scope (typically ~11 chars, generous headroom),
+// device ID, and device key (base64 -- sized to match what
+// build_sas_token()/base64_decode() can actually handle without silently
+// truncating a legitimately long key).
+// ---------------------------------------------------------------------
+static char s_wifiSsid[33] = {0};
+static char s_wifiPassword[64] = {0};
+static char s_idScope[32] = {0};
+static char s_deviceIdInput[64] = {0}; // the ID used to CALL dpsProvision()
+static char s_deviceKey[200] = {0};
+
+// ---- Tuning, overridable via the setters in AzureIoT.h before begin() ----
+static char s_dpsGlobalHost[64] = "global.azure-devices-provisioning.net";
+static unsigned long s_sasTokenLifetimeSecs = 3600UL;
+static unsigned long s_sendIntervalMs = 5000UL;
+static unsigned long s_wifiConnectTimeoutMs = 20000UL;
+static unsigned long s_mqttReconnectCooldownMs = 5000UL;
+static unsigned long s_wifiHardReinitAfterMs = 60000UL;
+static unsigned long s_wifiForceResetAfterMs = 300000UL;
+static unsigned long s_provisionRetryInitialMs = 60000UL;
+static unsigned long s_provisionRetryMaxMs = 900000UL;
+
+// ---- Runtime state ----
 static char s_iotHubHost[128] = {0};
-static char s_deviceId[64] = {0};
+static char s_deviceId[64] = {0}; // the ID DPS actually assigned us (see provisionDevice())
 static char s_sasToken[300] = {0};
 static unsigned long s_sasTokenExpiry = 0;
 
@@ -39,21 +65,21 @@ static void connectWiFi() {
 
     while (true) {
         Serial.print("Connecting to WiFi: ");
-        Serial.println(WIFI_SSID);
-        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+        Serial.println(s_wifiSsid);
+        WiFi.begin(s_wifiSsid, s_wifiPassword);
 
         unsigned long start = millis();
         bool restartAttempt = false;
-        while (WiFi.status() != WL_CONNECTED && millis() - start < WIFI_CONNECT_TIMEOUT_MS) {
+        while (WiFi.status() != WL_CONNECTED && millis() - start < s_wifiConnectTimeoutMs) {
             delay(500);
             Serial.print(".");
 
-            if (millis() - downSince > WIFI_FORCE_RESET_AFTER_MS) {
+            if (millis() - downSince > s_wifiForceResetAfterMs) {
                 Serial.println();
                 Serial.println("WiFi still down after the reset threshold -- forcing a full device reset.");
                 forceReset();
             }
-            if (!didHardReinit && millis() - downSince > WIFI_HARD_REINIT_AFTER_MS) {
+            if (!didHardReinit && millis() - downSince > s_wifiHardReinitAfterMs) {
                 Serial.println();
                 Serial.println("WiFi still down after the reinit threshold -- reinitializing the WiFi module...");
                 platformWifiHardReinit();
@@ -66,7 +92,7 @@ static void connectWiFi() {
         if (restartAttempt) continue; // go straight back to a fresh WiFi.begin()
 
         Serial.println();
-        Serial.println("WiFi connect timed out -- check WIFI_SSID/WIFI_PASSWORD in config.h. Retrying...");
+        Serial.println("WiFi connect timed out -- check the SSID/password passed to AzureIoT.begin(). Retrying...");
     }
     Serial.println();
     Serial.print("WiFi connected, IP: ");
@@ -88,7 +114,7 @@ static void connectWiFi() {
 static bool provisionDevice() {
     Serial.println("Provisioning via DPS...");
     DpsResult result;
-    if (!dpsProvision(IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY, result)) {
+    if (!dpsProvision(s_idScope, s_deviceIdInput, s_deviceKey, s_dpsGlobalHost, result)) {
         Serial.println("DPS provisioning FAILED.");
         return false;
     }
@@ -106,8 +132,8 @@ static bool refreshSasTokenIfNeeded() {
     }
     char resourceUri[192];
     snprintf(resourceUri, sizeof(resourceUri), "%s/devices/%s", s_iotHubHost, s_deviceId);
-    unsigned long expiry = now + SAS_TOKEN_LIFETIME_SECS;
-    if (build_sas_token(IOTC_DEVICE_KEY, resourceUri, expiry, s_sasToken, sizeof(s_sasToken)) == 0) {
+    unsigned long expiry = now + s_sasTokenLifetimeSecs;
+    if (build_sas_token(s_deviceKey, resourceUri, expiry, s_sasToken, sizeof(s_sasToken)) == 0) {
         Serial.println("Failed to build SAS token.");
         return false;
     }
@@ -117,7 +143,7 @@ static bool refreshSasTokenIfNeeded() {
 
 bool AzureIoTClass::ensureMqttConnected() {
     if (s_mqttClient.connected()) return true;
-    if (millis() - s_lastMqttAttemptMillis < MQTT_RECONNECT_COOLDOWN_MS) return false;
+    if (millis() - s_lastMqttAttemptMillis < s_mqttReconnectCooldownMs) return false;
     s_lastMqttAttemptMillis = millis();
 
     if (!refreshSasTokenIfNeeded()) return false;
@@ -188,7 +214,14 @@ void AzureIoTClass::flush() {
     }
 }
 
-void AzureIoTClass::begin() {
+void AzureIoTClass::begin(const char *wifiSsid, const char *wifiPassword,
+                           const char *idScope, const char *deviceId, const char *deviceKey) {
+    strncpy(s_wifiSsid, wifiSsid, sizeof(s_wifiSsid) - 1);
+    strncpy(s_wifiPassword, wifiPassword, sizeof(s_wifiPassword) - 1);
+    strncpy(s_idScope, idScope, sizeof(s_idScope) - 1);
+    strncpy(s_deviceIdInput, deviceId, sizeof(s_deviceIdInput) - 1);
+    strncpy(s_deviceKey, deviceKey, sizeof(s_deviceKey) - 1);
+
     connectWiFi();
 
     // Configure TLS trust for the persistent MQTT client once -- a no-op on
@@ -201,15 +234,15 @@ void AzureIoTClass::begin() {
     // forever on the first failure -- a transient Azure-side hiccup or a
     // DHCP/DNS blip during boot shouldn't brick the board until someone
     // finds it and power-cycles it. Doubles each time, capped at
-    // PROVISION_RETRY_MAX_MS, and retries indefinitely -- even a permanent
+    // s_provisionRetryMaxMs, and retries indefinitely -- even a permanent
     // misconfiguration (wrong ID scope/key) just settles into a slow,
     // harmless retry cadence rather than spamming Azure or wedging the
     // device.
-    unsigned long backoffMs = PROVISION_RETRY_INITIAL_MS;
+    unsigned long backoffMs = s_provisionRetryInitialMs;
     while (!provisionDevice()) {
         Serial.print("Provisioning failed -- retrying in ");
         Serial.print(backoffMs / 1000);
-        Serial.println("s. Check IOTC_ID_SCOPE/IOTC_DEVICE_ID/IOTC_DEVICE_KEY in config.h if this keeps happening.");
+        Serial.println("s. Check the ID scope/device ID/device key passed to AzureIoT.begin() if this keeps happening.");
 
         // Check Wi-Fi on every tick, not just once after the full wait --
         // otherwise a drop early in a long (up to 15 min, at the backoff
@@ -229,7 +262,7 @@ void AzureIoTClass::begin() {
         }
 
         backoffMs *= 2;
-        if (backoffMs > PROVISION_RETRY_MAX_MS) backoffMs = PROVISION_RETRY_MAX_MS;
+        if (backoffMs > s_provisionRetryMaxMs) backoffMs = s_provisionRetryMaxMs;
     }
 
     // Allocate the MQTT buffer exactly once, for the sketch's entire
@@ -253,7 +286,7 @@ void AzureIoTClass::loop() {
     ensureMqttConnected();
     s_mqttClient.loop();
 
-    if (millis() - s_lastFlushMillis >= SEND_INTERVAL_MS) {
+    if (millis() - s_lastFlushMillis >= s_sendIntervalMs) {
         flush();
     }
 }
@@ -280,5 +313,17 @@ void AzureIoTClass::publish(const char *key, float value) {
 void AzureIoTClass::sendNow() {
     flush();
 }
+
+void AzureIoTClass::setDpsGlobalHost(const char *host) {
+    strncpy(s_dpsGlobalHost, host, sizeof(s_dpsGlobalHost) - 1);
+}
+void AzureIoTClass::setSasTokenLifetime(unsigned long seconds) { s_sasTokenLifetimeSecs = seconds; }
+void AzureIoTClass::setSendInterval(unsigned long ms) { s_sendIntervalMs = ms; }
+void AzureIoTClass::setWifiConnectTimeout(unsigned long ms) { s_wifiConnectTimeoutMs = ms; }
+void AzureIoTClass::setMqttReconnectCooldown(unsigned long ms) { s_mqttReconnectCooldownMs = ms; }
+void AzureIoTClass::setWifiHardReinitAfter(unsigned long ms) { s_wifiHardReinitAfterMs = ms; }
+void AzureIoTClass::setWifiForceResetAfter(unsigned long ms) { s_wifiForceResetAfterMs = ms; }
+void AzureIoTClass::setProvisionRetryInitial(unsigned long ms) { s_provisionRetryInitialMs = ms; }
+void AzureIoTClass::setProvisionRetryMax(unsigned long ms) { s_provisionRetryMaxMs = ms; }
 
 AzureIoTClass AzureIoT;

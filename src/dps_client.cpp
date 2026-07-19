@@ -1,13 +1,8 @@
 #include "dps_client.h"
 #include "sas_token.h"
-#include "config.h"
 #include <string.h>
 #include <stdlib.h>
 
-// Previously this file had its own private copy of this hostname, which meant
-// changing config.h's DPS_GLOBAL_HOST (e.g. for Azure Government/China
-// clouds, which use different DPS endpoints) silently had no effect. Now
-// there's exactly one place this hostname is defined.
 static const char DPS_API_VERSION[] = "2019-03-31";
 
 // Very small helper: find `"key":"value"` in a JSON blob and copy value into out.
@@ -68,18 +63,19 @@ static int readLine(SecureWiFiClient &client, char *buf, size_t bufCap, unsigned
 // Sends one HTTPS request over an already-connected SecureWiFiClient and reads
 // the response body into `body` (headers are skipped). Returns HTTP status
 // code, or -1 on failure/timeout.
-static int httpRequest(SecureWiFiClient &client, const char *method, const char *path,
+static int httpRequest(SecureWiFiClient &client, const char *dpsGlobalHost,
+                        const char *method, const char *path,
                         const char *authHeader, const char *body, size_t bodyLen,
                         char *respBody, size_t respBodyCap) {
     configureSecureClient(client);
-    if (!client.connect(DPS_GLOBAL_HOST, 443)) return -1;
+    if (!client.connect(dpsGlobalHost, 443)) return -1;
 
     client.print(method);
     client.print(" ");
     client.print(path);
     client.println(" HTTP/1.1");
     client.print("Host: ");
-    client.println(DPS_GLOBAL_HOST);
+    client.println(dpsGlobalHost);
     client.println("Connection: close");
     client.println("Content-Type: application/json");
     client.print("Authorization: ");
@@ -139,7 +135,7 @@ static int httpRequest(SecureWiFiClient &client, const char *method, const char 
 }
 
 bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceKeyB64,
-                   DpsResult &out) {
+                   const char *dpsGlobalHost, DpsResult &out) {
     // resourceUri for DPS = "{idScope}/registrations/{deviceId}"
     char resourceUri[160];
     snprintf(resourceUri, sizeof(resourceUri), "%s/registrations/%s", idScope, deviceId);
@@ -159,7 +155,7 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
 
     char respBody[512];
     SecureWiFiClient client;
-    int status = httpRequest(client, "PUT", path, sasToken, reqBody, (size_t)bodyLen,
+    int status = httpRequest(client, dpsGlobalHost, "PUT", path, sasToken, reqBody, (size_t)bodyLen,
                               respBody, sizeof(respBody));
     if (status != 202 && status != 200) {
         return false;
@@ -180,7 +176,7 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
                  idScope, deviceId, operationId, DPS_API_VERSION);
 
         SecureWiFiClient pollClient;
-        int pollStatus = httpRequest(pollClient, "GET", pollPath, sasToken, nullptr, 0,
+        int pollStatus = httpRequest(pollClient, dpsGlobalHost, "GET", pollPath, sasToken, nullptr, 0,
                                       respBody, sizeof(respBody));
         if (pollStatus != 200 && pollStatus != 202) continue;
 

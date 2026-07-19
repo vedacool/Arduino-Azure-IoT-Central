@@ -22,49 +22,12 @@ static const char IOTC_ID_SCOPE[]    = "<ID Scope, e.g. 0ne00XXXXXX>";
 static const char IOTC_DEVICE_ID[]   = "<Device ID>";
 static const char IOTC_DEVICE_KEY[]  = "<Primary or computed device key, base64>";
 
-// DPS global endpoint (same for every IoT Central app worldwide -- only
-// change this if you're on Azure Government or Azure China, which use
-// different DPS endpoints).
-static const char DPS_GLOBAL_HOST[] = "global.azure-devices-provisioning.net";
-
-// How long a SAS token stays valid before AzureIoT mints a new one (seconds).
-static const unsigned long SAS_TOKEN_LIFETIME_SECS = 3600UL;
-
-// How often AzureIoT.loop() sends whatever you've published via
-// AzureIoT.publish(...) since the last send, as one combined MQTT message.
-// Call publish() as often as you like in your own loop() -- this is what
-// actually controls the send rate.
-static const unsigned long SEND_INTERVAL_MS = 5000UL;
-
-// How long to wait for one WiFi.begin() attempt before retrying (ms).
-static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000UL;
-
-// Minimum time between MQTT reconnect attempts when disconnected (ms) --
-// stops loop() from hammering Azure with reconnects if the network is down.
-static const unsigned long MQTT_RECONNECT_COOLDOWN_MS = 5000UL;
-
-// ---------------------------------------------------------------------
-// Long-run self-healing. Neither of these touches Azure -- both are purely
-// about getting Wi-Fi itself back up, so there's no cost to keeping them
-// tight. See AzureIoT.h for the full reasoning.
-// ---------------------------------------------------------------------
-
-// If Wi-Fi has been down this long, reinitialize the WiFiNINA module
-// (WiFi.end() + fresh WiFi.begin()) rather than just retrying -- clears a
-// wedged module state that a plain retry can't.
-static const unsigned long WIFI_HARD_REINIT_AFTER_MS = 60000UL; // 1 minute
-
-// If Wi-Fi is STILL down this long (even after the reinit above), force a
-// full device reset via RSTCTRL.SWRR. Last resort, but still free of any
-// Azure contact -- DPS is never reached until Wi-Fi is actually up.
-static const unsigned long WIFI_FORCE_RESET_AFTER_MS = 300000UL; // 5 minutes
-
-// If DPS provisioning fails (Wi-Fi is fine, but Azure/config is the
-// problem), retry with exponential backoff starting here...
-static const unsigned long PROVISION_RETRY_INITIAL_MS = 60000UL; // 1 minute
-// ...doubling each time, capped at this. This path is NOT free (each retry
-// is one DPS attempt), which is why it backs off instead of resetting --
-// see AzureIoT.h for why a full reset doesn't actually help this case.
-static const unsigned long PROVISION_RETRY_MAX_MS = 900000UL; // 15 minutes
+// That's it -- these five are passed straight into AzureIoT.begin() in
+// this sketch's setup(). Everything else (send interval, timeouts, the
+// Wi-Fi self-healing thresholds, DPS retry backoff, the DPS endpoint for
+// Azure Government/China) now has a sensible default built into the
+// library itself, and can be overridden with a setter if you ever need to
+// -- see AzureIoT.h for the full list (setSendInterval(), setDpsGlobalHost(),
+// etc.), called before AzureIoT.begin() in setup().
 
 #endif

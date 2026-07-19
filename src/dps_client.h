@@ -13,8 +13,10 @@ struct DpsResult {
 //   PUT  .../{idScope}/registrations/{deviceId}/register?api-version=2019-03-31
 //   GET  .../{idScope}/registrations/{deviceId}/operations/{operationId}?... (poll)
 // using a SAS token scoped to "{idScope}/registrations/{deviceId}".
-// Returns true and fills `out` on success.
+// dpsGlobalHost is normally "global.azure-devices-provisioning.net" --
+// passed in rather than read from a config.h this file can't reliably see
+// (see AzureIoT.h for why). Returns true and fills `out` on success.
 bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceKeyB64,
-                   DpsResult &out);
+                   const char *dpsGlobalHost, DpsResult &out);
 
 #endif

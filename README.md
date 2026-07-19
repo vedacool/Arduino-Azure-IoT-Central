@@ -93,7 +93,8 @@ Every exercise is the same three-part shape:
 
 void setup() {
     Serial.begin(115200);
-    AzureIoT.begin();          // connects WiFi, provisions via DPS, connects MQTT
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
+    // connects WiFi, provisions via DPS, connects MQTT
 }
 
 void loop() {
@@ -106,11 +107,13 @@ void loop() {
 
 ## Writing your own exercise / project
 
-This is the point of the redesign: **the algorithm is yours.** `AzureIoT.begin()` and `AzureIoT.loop()` are the only calls you need for connectivity — everything else in `loop()` (which sensors to read, what math to do, when to publish what) is ordinary Arduino code, exactly like Modules 2 and 4 already taught, just aimed at `AzureIoT.publish(key, value)` instead of `Serial.println(...)`.
+This is the point of the redesign: **the algorithm is yours.** `AzureIoT.begin(...)` and `AzureIoT.loop()` are the only calls you need for connectivity — everything else in `loop()` (which sensors to read, what math to do, when to publish what) is ordinary Arduino code, exactly like Modules 2 and 4 already taught, just aimed at `AzureIoT.publish(key, value)` instead of `Serial.println(...)`.
 
 A few things worth knowing:
 
-- **`publish()` only stages a value — it doesn't send anything by itself.** `AzureIoT.loop()` sends everything staged since the last send, as one combined JSON message, on a timer (`SEND_INTERVAL_MS` in `config.h`, default 5 seconds). Call `publish()` as often as you like — from a fast loop, from inside an `if`, whatever — the actual send rate stays bounded and predictable. This matters with ~20 boards sharing one classroom Wi-Fi network and one Azure app: unbounded sends per sensor reading would make the network and Azure app noisy fast.
+- **`begin()` takes your five credentials as plain arguments, not by reading `config.h` itself.** Your sketch includes its own `config.h` (which it can always see, being in the same folder) and hands the values to `AzureIoT.begin(ssid, password, idScope, deviceId, deviceKey)`. This isn't just style — a library's own source files can't reliably see a *sketch's* local files in current Arduino tooling, so the library reading `config.h` directly used to fail with a `config.h: No such file or directory` error depending on IDE version.
+- **Tuning knobs (send interval, timeouts, Wi-Fi self-healing thresholds, DPS retry backoff, DPS endpoint) live in the library now, not `config.h`**, with sensible defaults. Override any of them with a setter call before `begin()` — e.g. `AzureIoT.setSendInterval(10000);` — see `AzureIoT.h` for the full list.
+- **`publish()` only stages a value — it doesn't send anything by itself.** `AzureIoT.loop()` sends everything staged since the last send, as one combined JSON message, on a timer (default 5 seconds, override with `setSendInterval()`). Call `publish()` as often as you like — from a fast loop, from inside an `if`, whatever — the actual send rate stays bounded and predictable. This matters with ~20 boards sharing one classroom Wi-Fi network and one Azure app: unbounded sends per sensor reading would make the network and Azure app noisy fast.
 - **Need an immediate send** instead of waiting for the timer (e.g. reacting to a button press)? Call `AzureIoT.sendNow()`.
 - **`publish()`'s key must be a string literal** (`"temperature"`, not something built at runtime) — the pointer is kept, not copied.
 - Publishing multiple values before a send combines them into one message: `{"temperature":24.00,"humidity":55.00}` — see Exercise 6, which reads both from one DHT11.
