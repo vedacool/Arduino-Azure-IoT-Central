@@ -1,8 +1,7 @@
 #ifndef DPS_CLIENT_H
 #define DPS_CLIENT_H
 #include <Arduino.h>
-#include <WiFiNINA.h>
-#include <WiFiSSLClient.h>
+#include "platform.h"
 
 // Result of a successful DPS provisioning round.
 struct DpsResult {

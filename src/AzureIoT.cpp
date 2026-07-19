@@ -1,5 +1,5 @@
 #include "AzureIoT.h"
-#include <WiFiNINA.h>
+#include "platform.h"
 #include <PubSubClient.h>
 #include <string.h>
 #include "config.h"
@@ -7,7 +7,7 @@
 #include "dps_client.h"
 #include "reset.h"
 
-static WiFiSSLClient s_wifiClient;
+static SecureWiFiClient s_wifiClient;
 static PubSubClient s_mqttClient(s_wifiClient);
 
 static char s_iotHubHost[128] = {0};
@@ -29,10 +29,11 @@ static void connectWiFi() {
     // Two escalating remedies, both free of any Azure/DPS cost since
     // neither one gets anywhere near the network until Wi-Fi is actually
     // up:
-    //   ~1 min:  WiFi.end() + fresh WiFi.begin() -- clears a wedged NINA
-    //            module state that a plain retry can't.
-    //   ~5 min:  full device reset via RSTCTRL.SWRR -- last resort if even
-    //            the reinit didn't help.
+    //   ~1 min:  reinitialize the Wi-Fi radio + fresh WiFi.begin() -- clears
+    //            a wedged module/driver state that a plain retry can't.
+    //   ~5 min:  full device reset -- last resort if even the reinit didn't
+    //            help. Uses RSTCTRL.SWRR on megaAVR boards, ESP.restart()
+    //            on ESP32 -- see reset.cpp.
     unsigned long downSince = millis();
     bool didHardReinit = false;
 
@@ -55,7 +56,7 @@ static void connectWiFi() {
             if (!didHardReinit && millis() - downSince > WIFI_HARD_REINIT_AFTER_MS) {
                 Serial.println();
                 Serial.println("WiFi still down after the reinit threshold -- reinitializing the WiFi module...");
-                WiFi.end();
+                platformWifiHardReinit();
                 didHardReinit = true;
                 restartAttempt = true;
                 break;
@@ -71,11 +72,13 @@ static void connectWiFi() {
     Serial.print("WiFi connected, IP: ");
     Serial.println(WiFi.localIP());
 
-    // Wait for the NINA module's NTP-synced clock -- SAS tokens are time-based
-    // and Azure rejects tokens whose expiry looks wrong, so we must not sign
-    // anything before the clock is real.
+    // Wait for a real clock -- SAS tokens are time-based and Azure rejects
+    // tokens whose expiry looks wrong, so we must not sign anything before
+    // this. WiFiNINA modules sync automatically once connected; ESP32 needs
+    // an explicit NTP kick (platformBeginTimeSync() below) first.
+    platformBeginTimeSync();
     Serial.print("Waiting for network time");
-    while (WiFi.getTime() < 1700000000UL) { // sanity floor: after Nov 2023
+    while (platformGetUnixTime() < 1700000000UL) { // sanity floor: after Nov 2023
         Serial.print(".");
         delay(500);
     }
@@ -97,7 +100,7 @@ static bool provisionDevice() {
 }
 
 static bool refreshSasTokenIfNeeded() {
-    unsigned long now = WiFi.getTime();
+    unsigned long now = platformGetUnixTime();
     if (s_sasToken[0] != '\0' && now < s_sasTokenExpiry - 60) {
         return true; // still valid for at least another minute
     }
@@ -187,6 +190,12 @@ void AzureIoTClass::flush() {
 
 void AzureIoTClass::begin() {
     connectWiFi();
+
+    // Configure TLS trust for the persistent MQTT client once -- a no-op on
+    // WiFiNINA boards, sets the embedded root CA on ESP32. Doing this once
+    // here (not on every reconnect) matches the same reasoning as
+    // setBufferSize() below.
+    configureSecureClient(s_wifiClient);
 
     // Retry provisioning with exponential backoff instead of halting
     // forever on the first failure -- a transient Azure-side hiccup or a
