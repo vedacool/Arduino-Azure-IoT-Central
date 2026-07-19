@@ -40,11 +40,11 @@ Skipping this is the single most common reason a fresh Azure/Arduino project fai
 
 ### 5. Open an exercise and set up its config
 
-**File → Examples → AzureIoT → 01_Sensor_Suhu_TemperatureSensor** (or whichever exercise you're doing). In that sketch's folder, copy `config.h.example` to `config.h` and fill in:
+**File → Examples → AzureIoT → 01_Sensor_Suhu_TemperatureSensor** (or whichever exercise you're doing). It comes with a `config.h` already in its folder — just open it and edit the values directly:
 - `WIFI_SSID` / `WIFI_PASSWORD`
 - `IOTC_ID_SCOPE` / `IOTC_DEVICE_ID` / `IOTC_DEVICE_KEY` (from Step 3)
 
-**`config.h` is deliberately gitignored** — only `config.h.example`, with placeholder values, is tracked, so real credentials never end up committed.
+**Heads up:** `config.h` ships with placeholder values so the example compiles immediately — no copying a file first. If you're using this library in your own separate sketch, that's all there is to it. If you're instead working on a fork of *this* repository, remember `config.h` is a normal tracked file here: don't commit it after filling in your real credentials.
 
 ### 6. Upload and check the Serial Monitor
 

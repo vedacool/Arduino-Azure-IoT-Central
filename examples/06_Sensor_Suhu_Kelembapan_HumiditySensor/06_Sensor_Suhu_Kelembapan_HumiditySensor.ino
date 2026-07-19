@@ -10,7 +10,7 @@
 // .ZIP Library, using the .zip from
 // https://github.com/Seeed-Studio/Grove_Temperature_And_Humidity_Sensor
 //
-// Setup: copy config.h.example to config.h in this folder and fill in your
+// Setup: edit config.h in this folder with your
 // Wi-Fi + Azure credentials before uploading.
 
 #include <AzureIoT.h>

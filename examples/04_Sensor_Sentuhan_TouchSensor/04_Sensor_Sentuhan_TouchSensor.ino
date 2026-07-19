@@ -3,7 +3,7 @@
 // Grove Touch Sensor on digital pin 3, connected to Azure IoT Central via
 // the AzureIoT library.
 //
-// Setup: copy config.h.example to config.h in this folder and fill in your
+// Setup: edit config.h in this folder with your
 // Wi-Fi + Azure credentials before uploading.
 
 #include <AzureIoT.h>

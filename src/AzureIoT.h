@@ -7,7 +7,7 @@
 // Usage (see examples/ for complete sketches):
 //
 //   #include <AzureIoT.h>
-//   #include "config.h"   // your Wi-Fi + Azure credentials, see config.h.example
+//   #include "config.h"   // your Wi-Fi + Azure credentials -- ships with placeholders, just edit them
 //
 //   void setup() {
 //     Serial.begin(115200);

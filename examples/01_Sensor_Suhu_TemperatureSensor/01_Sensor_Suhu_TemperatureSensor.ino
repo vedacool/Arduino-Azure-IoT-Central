@@ -3,7 +3,7 @@
 // Grove Temperature Sensor (thermistor) on analog pin A0, connected to
 // Azure IoT Central via the AzureIoT library.
 //
-// Setup: copy config.h.example to config.h in this folder and fill in your
+// Setup: edit config.h in this folder with your
 // Wi-Fi + Azure credentials before uploading. See the AzureIoT library's
 // main README for the one-time TLS certificate upload step.
 
