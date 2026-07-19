@@ -10,10 +10,12 @@ This also **replaces Module 4** of the workshop ("Mengintegrasi Sensor Groove Ar
 
 ### 1. Install the library
 
-Copy the `AzureIoT/` folder from this repo into your Arduino libraries folder:
+**Easiest: Arduino IDE → Sketch → Include Library → Add .ZIP Library...** — download this repo as a ZIP (green **Code** button → **Download ZIP** on GitHub) and select that file directly. No unzipping needed.
+
+**Alternative (manual):** clone or unzip this repo, then rename the resulting folder to `AzureIoT` and place it directly in your Arduino libraries folder:
 - Windows/Mac/Linux: `Documents/Arduino/libraries/AzureIoT`
 
-Restart the Arduino IDE. You should now see **File → Examples → AzureIoT** listing the six exercises.
+Either way, restart the Arduino IDE afterward. You should now see **File → Examples → AzureIoT** listing the six exercises.
 
 ### 2. Install the two libraries AzureIoT depends on
 
