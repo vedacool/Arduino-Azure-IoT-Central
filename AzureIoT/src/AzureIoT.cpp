@@ -202,16 +202,21 @@ void AzureIoTClass::begin() {
         Serial.print(backoffMs / 1000);
         Serial.println("s. Check IOTC_ID_SCOPE/IOTC_DEVICE_ID/IOTC_DEVICE_KEY in config.h if this keeps happening.");
 
+        // Check Wi-Fi on every tick, not just once after the full wait --
+        // otherwise a drop early in a long (up to 15 min, at the backoff
+        // cap) wait wouldn't get noticed, let alone escalated through
+        // connectWiFi()'s 1-min/5-min remedies, until the whole wait
+        // elapsed. Break out the moment it's noticed instead.
         unsigned long waitStart = millis();
         while (millis() - waitStart < backoffMs) {
             delay(5000);
             Serial.print(".");
+            if (WiFi.status() != WL_CONNECTED) break;
         }
         Serial.println();
 
         if (WiFi.status() != WL_CONNECTED) {
-            connectWiFi(); // Wi-Fi dropped while we were waiting; connectWiFi()
-                           // has its own reinit/reset escalation if this drags on
+            connectWiFi(); // has its own reinit/reset escalation if this drags on
         }
 
         backoffMs *= 2;
