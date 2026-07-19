@@ -3,5 +3,7 @@
 *.hex
 build/
 
-# Real credentials go in config.h (copied from config.h.example) -- never commit it.
+# Real credentials go in config.h (copied from config.h.example in each
+# example folder) -- never commit it. Matches at any depth.
 config.h
+**/config.h
