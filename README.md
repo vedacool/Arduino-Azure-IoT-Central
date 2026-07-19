@@ -121,10 +121,17 @@ A few things worth knowing:
 
 ---
 
+## Long-run / unattended operation
+
+See the top of `AzureIoT.h` for the full design. Summary: Wi-Fi trouble self-heals in two free (no Azure contact) tiers -- a WiFiNINA module reinit after ~1 min down, a full device reset after ~5 min down. DPS provisioning failures retry with exponential backoff (1→2→4→8, capped at 15 min) instead of ever resetting, since a reset can't fix a wrong config any faster and resetting on a tight timer would risk Azure rate-limiting the device.
+
+The reset uses `RSTCTRL.SWRR` (megaAVR-0's dedicated software-reset register), not the watchdog timer, specifically to avoid the watchdog's documented timing-accuracy quirks on this chip (see `reset.h`).
+
 ## Known limitations (read before a long unattended run)
 
-- **Peak stack depth** during DPS provisioning is roughly 1.2–1.5KB on a board with 6KB total SRAM. Verified to compile and run correctly in simulation, but not endurance-tested on real hardware yet.
-- **No watchdog timer.** If the board ever hangs, it stays hung until manually power-cycled.
+- **Peak stack depth** during DPS provisioning is ~2.2–2.6KB on a board with 6KB total SRAM (measured with `avr-gcc -fstack-usage` against the real functions, not estimated) — but this only happens once, at boot, before the MQTT heap buffer even exists yet. Steady-state `loop()` operation uses well under 2.5KB total. Not endurance-tested on real hardware yet.
+- **`reset.cpp` (the software-reset trigger) is not compile-tested** in the environment this was built in — it needs the real `atmega4809` device header, only available through Arduino's own Board Manager toolchain. Confirmed against two independent sources (the official datasheet and Arduino's own bootloader source for this chip) but not built or run for real. Test it once on real hardware — deliberately hang the sketch and confirm it actually resets — before depending on it.
+- **The self-healing above catches "stuck disconnected," not an arbitrary hang.** If something else entirely freezes the sketch (e.g. a library bug wedging mid-`loop()` with Wi-Fi otherwise fine), nothing currently recovers from that — a true hardware watchdog would, but isn't included here (see `AzureIoT.h`'s history for why: the watchdog's timing accuracy on this chip is independently reported as unreliable in two separate places).
 - **`extractJsonString()`** (inside the library's `dps_client.cpp`) is a lightweight substring search, not a full JSON parser — matches Azure's documented DPS response format but isn't robust to Azure changing that structure.
 - The board's **ATECC608 crypto chip goes unused** — authentication here is a software-computed SAS token (symmetric key), not the hardware-backed X.509 approach the chip is designed for. That'd be a bigger redesign.
 
@@ -133,5 +140,6 @@ A few things worth knowing:
 - **Crypto core** (`sha256.c`/`b64url.c`/`sas_token.c`): checked against NIST/RFC test vectors and, separately, byte-for-byte against an independent Python (`hashlib`/`hmac`/`base64`) implementation of Azure's documented SAS-token algorithm, across 16 randomized cases.
 - **API usage**: every WiFiNINA/PubSubClient call checked against the actual current library source.
 - **`publish()`/`loop()` staging and flush logic**: directly unit-tested — overwrite semantics (publishing the same key twice before a send keeps only the latest value), correct clearing after a send, multiple keys combined into one message, and 50 rapid calls collapsing to one field per key (confirming the bounded send-rate design actually holds).
+- **Long-run escalation logic**: the exponential-backoff arithmetic was isolated and checked in a standalone repro before being trusted inside the sketch. The full Wi-Fi-escalation and provisioning-backoff paths were then each tested end-to-end through the real, unmodified `AzureIoT.cpp` using an instrumented mock with a controllable simulated clock — confirming the reinit fires once at the 1-minute mark, the reset fires once afterward at the 5-minute mark, and that provisioning failures (with Wi-Fi otherwise fine) never trigger either one.
 - **All six example sketches** compiled cleanly against mocks of the real WiFiNINA/PubSubClient/DHT libraries; the full library + one example were linked and run end-to-end.
 - **Not verified**: real hardware, real Azure credentials, and the exact `atmega4809` compiler device pack (only available through Arduino's own Board Manager download, unreachable from the sandbox this was built in). Compile and test against one real device before relying on it for a group of students.
