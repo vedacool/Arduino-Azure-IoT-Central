@@ -13,9 +13,11 @@ extern "C" {
 size_t base64_encode(const uint8_t *in, size_t in_len, char *out);
 size_t base64_enc_len(size_t in_len);
 
-/* Decodes base64 text (len chars, no padding requirement assumed to be exact)
-   into out. Returns number of decoded bytes. */
-size_t base64_decode(const char *in, size_t in_len, uint8_t *out);
+/* Decodes base64 text (in_len chars) into out, writing at most out_cap bytes.
+   Returns number of decoded bytes, or 0 if the decoded output would not fit
+   in out_cap (caller's buffer is left partially written in that case --
+   always check the return value before trusting `out`). */
+size_t base64_decode(const char *in, size_t in_len, uint8_t *out, size_t out_cap);
 size_t base64_dec_len(const char *in, size_t in_len);
 
 /* RFC 3986 percent-encoding, but ALSO treating space as %20 (not '+'), and

@@ -1,9 +1,13 @@
 #include "dps_client.h"
 #include "sas_token.h"
+#include "config.h"
 #include <string.h>
 #include <stdlib.h>
 
-static const char DPS_HOST[] = "global.azure-devices-provisioning.net";
+// Previously this file had its own private copy of this hostname, which meant
+// changing config.h's DPS_GLOBAL_HOST (e.g. for Azure Government/China
+// clouds, which use different DPS endpoints) silently had no effect. Now
+// there's exactly one place this hostname is defined.
 static const char DPS_API_VERSION[] = "2019-03-31";
 
 // Very small helper: find `"key":"value"` in a JSON blob and copy value into out.
@@ -31,20 +35,50 @@ static bool extractJsonString(const char *json, const char *key, char *out, size
     return true;
 }
 
+// Reads one line (up to and including '\n', which is stripped, as is a
+// trailing '\r') into buf. Returns line length, or -1 on timeout/overflow.
+// No String, no heap allocation -- matches the fixed-buffer approach used
+// everywhere else in this sketch.
+static int readLine(WiFiSSLClient &client, char *buf, size_t bufCap, unsigned long timeoutMs) {
+    size_t n = 0;
+    unsigned long start = millis();
+    while (millis() - start < timeoutMs) {
+        if (client.available()) {
+            char c = (char)client.read();
+            if (c == '\n') {
+                if (n > 0 && buf[n-1] == '\r') n--;
+                buf[n] = '\0';
+                return (int)n;
+            }
+            if (n + 1 >= bufCap) {
+                buf[n] = '\0';
+                return (int)n; // line longer than our buffer; caller gets what fit
+            }
+            buf[n++] = c;
+        } else if (!client.connected()) {
+            break;
+        } else {
+            delay(5);
+        }
+    }
+    buf[n] = '\0';
+    return n > 0 ? (int)n : -1;
+}
+
 // Sends one HTTPS request over an already-connected WiFiSSLClient and reads
 // the response body into `body` (headers are skipped). Returns HTTP status
 // code, or -1 on failure/timeout.
 static int httpRequest(WiFiSSLClient &client, const char *method, const char *path,
                         const char *authHeader, const char *body, size_t bodyLen,
                         char *respBody, size_t respBodyCap) {
-    if (!client.connect(DPS_HOST, 443)) return -1;
+    if (!client.connect(DPS_GLOBAL_HOST, 443)) return -1;
 
     client.print(method);
     client.print(" ");
     client.print(path);
     client.println(" HTTP/1.1");
     client.print("Host: ");
-    client.println(DPS_HOST);
+    client.println(DPS_GLOBAL_HOST);
     client.println("Connection: close");
     client.println("Content-Type: application/json");
     client.print("Authorization: ");
@@ -68,19 +102,26 @@ static int httpRequest(WiFiSSLClient &client, const char *method, const char *pa
     }
 
     // Status line, e.g. "HTTP/1.1 202 Accepted"
-    String statusLine = client.readStringUntil('\n');
+    char lineBuf[96];
+    if (readLine(client, lineBuf, sizeof(lineBuf), 5000UL) < 0) {
+        client.stop();
+        return -1;
+    }
     int statusCode = -1;
-    int firstSpace = statusLine.indexOf(' ');
-    if (firstSpace > 0) statusCode = statusLine.substring(firstSpace + 1).toInt();
+    char *sp = strchr(lineBuf, ' ');
+    if (sp) statusCode = atoi(sp + 1);
 
-    // Skip headers until blank line.
-    while (client.connected() || client.available()) {
-        String line = client.readStringUntil('\n');
-        if (line.length() <= 1) break; // "\r\n" only
+    // Skip headers until the blank line.
+    while (true) {
+        int len = readLine(client, lineBuf, sizeof(lineBuf), 5000UL);
+        if (len <= 0) break; // blank line (end of headers) or timeout/EOF
     }
 
-    // Read remaining body (chunked or not -- DPS responses are small and not
-    // chunk-encoded in practice for this call, so a straight read is fine).
+    // Read remaining body (chunked or not -- DPS responses observed in
+    // practice for this call are small and not chunk-encoded, so a straight
+    // read is fine; if Azure ever changes that, extractJsonString() below
+    // will simply fail to find its fields and dpsProvision() returns false
+    // rather than misbehaving silently).
     size_t n = 0;
     unsigned long bodyStart = millis();
     while ((client.connected() || client.available()) && n < respBodyCap - 1 &&

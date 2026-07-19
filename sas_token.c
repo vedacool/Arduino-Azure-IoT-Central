@@ -8,8 +8,8 @@ size_t build_sas_token(const char *key_b64, const char *resource_uri,
                         unsigned long expiry_epoch_secs,
                         char *out, size_t out_cap) {
     uint8_t key_raw[128];
-    size_t key_raw_len = base64_decode(key_b64, strlen(key_b64), key_raw);
-    if (key_raw_len == 0 || key_raw_len > sizeof(key_raw)) return 0;
+    size_t key_raw_len = base64_decode(key_b64, strlen(key_b64), key_raw, sizeof(key_raw));
+    if (key_raw_len == 0) return 0;
 
     char uri_enc[256];
     url_encode(resource_uri, uri_enc, sizeof(uri_enc));

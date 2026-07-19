@@ -2,3 +2,6 @@
 *.elf
 *.hex
 build/
+
+# Real credentials go in config.h (copied from config.h.example) -- never commit it.
+config.h

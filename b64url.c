@@ -50,7 +50,7 @@ size_t base64_dec_len(const char *in, size_t in_len) {
     return (in_len / 4) * 3 - pad;
 }
 
-size_t base64_decode(const char *in, size_t in_len, uint8_t *out) {
+size_t base64_decode(const char *in, size_t in_len, uint8_t *out, size_t out_cap) {
     size_t i, o = 0;
     uint32_t buf = 0;
     int bits = 0;
@@ -62,6 +62,7 @@ size_t base64_decode(const char *in, size_t in_len, uint8_t *out) {
         bits += 6;
         if (bits >= 8) {
             bits -= 8;
+            if (o >= out_cap) return 0; /* would overflow caller's buffer */
             out[o++] = (uint8_t)((buf >> bits) & 0xFF);
         }
     }
