@@ -5,6 +5,7 @@
 #include "config.h"
 #include "sas_token.h"
 #include "dps_client.h"
+#include "reset.h"
 
 static WiFiSSLClient s_wifiClient;
 static PubSubClient s_mqttClient(s_wifiClient);
@@ -23,17 +24,45 @@ static StagedValue s_staged[16];
 static size_t s_stagedCount = 0;
 
 static void connectWiFi() {
+    // Tracks cumulative time since Wi-Fi was last known good, across
+    // however many WiFi.begin() attempts it takes -- not reset per-attempt.
+    // Two escalating remedies, both free of any Azure/DPS cost since
+    // neither one gets anywhere near the network until Wi-Fi is actually
+    // up:
+    //   ~1 min:  WiFi.end() + fresh WiFi.begin() -- clears a wedged NINA
+    //            module state that a plain retry can't.
+    //   ~5 min:  full device reset via RSTCTRL.SWRR -- last resort if even
+    //            the reinit didn't help.
+    unsigned long downSince = millis();
+    bool didHardReinit = false;
+
     while (true) {
         Serial.print("Connecting to WiFi: ");
         Serial.println(WIFI_SSID);
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
         unsigned long start = millis();
+        bool restartAttempt = false;
         while (WiFi.status() != WL_CONNECTED && millis() - start < WIFI_CONNECT_TIMEOUT_MS) {
             delay(500);
             Serial.print(".");
+
+            if (millis() - downSince > WIFI_FORCE_RESET_AFTER_MS) {
+                Serial.println();
+                Serial.println("WiFi still down after the reset threshold -- forcing a full device reset.");
+                forceReset();
+            }
+            if (!didHardReinit && millis() - downSince > WIFI_HARD_REINIT_AFTER_MS) {
+                Serial.println();
+                Serial.println("WiFi still down after the reinit threshold -- reinitializing the WiFi module...");
+                WiFi.end();
+                didHardReinit = true;
+                restartAttempt = true;
+                break;
+            }
         }
         if (WiFi.status() == WL_CONNECTED) break;
+        if (restartAttempt) continue; // go straight back to a fresh WiFi.begin()
 
         Serial.println();
         Serial.println("WiFi connect timed out -- check WIFI_SSID/WIFI_PASSWORD in config.h. Retrying...");
@@ -91,7 +120,11 @@ bool AzureIoTClass::ensureMqttConnected() {
     if (!refreshSasTokenIfNeeded()) return false;
 
     s_mqttClient.setServer(s_iotHubHost, 8883);
-    s_mqttClient.setBufferSize(1024); // PubSubClient >=2.8; no library edits needed
+    // NOTE: setBufferSize() is called ONCE in begin(), not here. PubSubClient's
+    // setBufferSize() does a heap malloc()/realloc() -- calling it on every
+    // reconnect (which will happen periodically over weeks of normal Wi-Fi
+    // blips) would mean needless repeated heap churn on a 6KB-RAM board for
+    // no benefit, since the size never changes.
 
     char username[220];
     snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12",
@@ -154,10 +187,47 @@ void AzureIoTClass::flush() {
 
 void AzureIoTClass::begin() {
     connectWiFi();
-    if (!provisionDevice()) {
-        Serial.println("Halting: provisioning failed. Check ID scope / device ID / key.");
+
+    // Retry provisioning with exponential backoff instead of halting
+    // forever on the first failure -- a transient Azure-side hiccup or a
+    // DHCP/DNS blip during boot shouldn't brick the board until someone
+    // finds it and power-cycles it. Doubles each time, capped at
+    // PROVISION_RETRY_MAX_MS, and retries indefinitely -- even a permanent
+    // misconfiguration (wrong ID scope/key) just settles into a slow,
+    // harmless retry cadence rather than spamming Azure or wedging the
+    // device.
+    unsigned long backoffMs = PROVISION_RETRY_INITIAL_MS;
+    while (!provisionDevice()) {
+        Serial.print("Provisioning failed -- retrying in ");
+        Serial.print(backoffMs / 1000);
+        Serial.println("s. Check IOTC_ID_SCOPE/IOTC_DEVICE_ID/IOTC_DEVICE_KEY in config.h if this keeps happening.");
+
+        unsigned long waitStart = millis();
+        while (millis() - waitStart < backoffMs) {
+            delay(5000);
+            Serial.print(".");
+        }
+        Serial.println();
+
+        if (WiFi.status() != WL_CONNECTED) {
+            connectWiFi(); // Wi-Fi dropped while we were waiting; connectWiFi()
+                           // has its own reinit/reset escalation if this drags on
+        }
+
+        backoffMs *= 2;
+        if (backoffMs > PROVISION_RETRY_MAX_MS) backoffMs = PROVISION_RETRY_MAX_MS;
+    }
+
+    // Allocate the MQTT buffer exactly once, for the sketch's entire
+    // lifetime -- see the note in ensureMqttConnected() for why this must
+    // not be called again on every reconnect. If this fails, the board has
+    // essentially no usable heap left; halt visibly rather than limp along
+    // with a broken MQTT client that will fail every publish silently.
+    if (!s_mqttClient.setBufferSize(1024)) {
+        Serial.println("Halting: could not allocate MQTT buffer (out of memory).");
         while (true) { delay(1000); }
     }
+
     ensureMqttConnected();
     s_lastFlushMillis = millis();
 }

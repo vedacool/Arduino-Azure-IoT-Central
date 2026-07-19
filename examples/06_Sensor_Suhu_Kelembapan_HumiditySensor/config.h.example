@@ -32,4 +32,28 @@ static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000UL;
 // stops loop() from hammering Azure with reconnects if the network is down.
 static const unsigned long MQTT_RECONNECT_COOLDOWN_MS = 5000UL;
 
+// ---------------------------------------------------------------------
+// Long-run self-healing. Neither of these touches Azure -- both are purely
+// about getting Wi-Fi itself back up, so there's no cost to keeping them
+// tight. See AzureIoT.h for the full reasoning.
+// ---------------------------------------------------------------------
+
+// If Wi-Fi has been down this long, reinitialize the WiFiNINA module
+// (WiFi.end() + fresh WiFi.begin()) rather than just retrying -- clears a
+// wedged module state that a plain retry can't.
+static const unsigned long WIFI_HARD_REINIT_AFTER_MS = 60000UL; // 1 minute
+
+// If Wi-Fi is STILL down this long (even after the reinit above), force a
+// full device reset via RSTCTRL.SWRR. Last resort, but still free of any
+// Azure contact -- DPS is never reached until Wi-Fi is actually up.
+static const unsigned long WIFI_FORCE_RESET_AFTER_MS = 300000UL; // 5 minutes
+
+// If DPS provisioning fails (Wi-Fi is fine, but Azure/config is the
+// problem), retry with exponential backoff starting here...
+static const unsigned long PROVISION_RETRY_INITIAL_MS = 60000UL; // 1 minute
+// ...doubling each time, capped at this. This path is NOT free (each retry
+// is one DPS attempt), which is why it backs off instead of resetting --
+// see AzureIoT.h for why a full reset doesn't actually help this case.
+static const unsigned long PROVISION_RETRY_MAX_MS = 900000UL; // 15 minutes
+
 #endif
