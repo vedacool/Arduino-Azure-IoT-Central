@@ -1,5 +1,5 @@
 {
-  "lastAuditCommit": "84eea0d",
+  "lastAuditCommit": "a4cb51d",
   "lastFullAuditCommit": "84eea0d",
   "verifiedGood": [
     "src/sha256.c + src/b64url.c + src/sas_token.c -- crypto core: RFC/NIST vectors, ASan/UBSan clean, byte-identical to independent Python cross-check",
@@ -9,12 +9,17 @@
     "config.h files across all 20 examples -- placeholder-only, no real secrets",
     "src/AzureIoT.cpp onBoolProperty/reportBoolProperty MQTT twin topics -- cross-checked against official Microsoft docs + 2 independent third-party MQTT-direct implementations",
     "src/AzureIoT.cpp extractJsonBool/extractJsonNumber + twin GET response parsing -- functionally tested against realistic Azure twin JSON (5 scenarios)",
-    "All 21 examples (00-20) -- compile clean (zero warnings) against a mock Arduino core + AzureIoT API"
+    "All 21 examples (00-20) -- compile clean (zero warnings) against a mock Arduino core + AzureIoT API",
+    "src/platform.h platformWatchdogEnable/Pet -- register/API usage cross-checked against 3+ independent sources per platform (AVR Freaks, megaTinyCore/DxCore reference docs, arduino-esp32 3.x migration notes); syntax-checked against stubbed real macro/struct shapes",
+    "src/AzureIoT.cpp reportBoolProperty() retry buffer -- functionally tested via single-TU inclusion of the real .cpp, 6 scenarios under ASan/UBSan"
   ],
   "bugsFoundAndFixed": [
     "ackBoolProperty()/reportBoolProperty()/requestFullTwin() topic buffers undersized for unsigned long's full range -- silently truncated $rid after request-id 100 (reproduced directly, not just reasoned about). Fixed: proper sizing + truncation checks on all three.",
     "17_ClapToToggleLed was level-triggered with a cooldown, not edge-triggered -- sustained loud noise would retoggle repeatedly instead of being treated as one event. Fixed with rising-edge detection + cooldown for decay-tail debounce.",
     "18_AutoNightLight/19_ComfortAlarm had no hysteresis -- real flicker risk at the threshold boundary, especially with DHT11's +/-2degC accuracy. Fixed with dual (low/high) thresholds.",
-    "19_ComfortAlarm (pre-audit, caught during design not a later find) originally overloaded 'buzzerOn' as both a writable mute-control and telemetry -- same name, two meanings. Split into 'muted' property + 'buzzerOn' telemetry."
+    "19_ComfortAlarm (pre-audit, caught during design not a later find) originally overloaded 'buzzerOn' as both a writable mute-control and telemetry -- same name, two meanings. Split into 'muted' property + 'buzzerOn' telemetry.",
+    "refreshSasTokenIfNeeded()'s resourceUri buffer undersized for the true worst-case hub-hostname + device-ID length (200 needed, 192 available) -- found via -Wformat-truncation=2, not a routine build flag. Fixed: real margin + truncation check.",
+    "Design flaw caught BEFORE shipping (not a bug in committed code): a naive 'pet watchdog once per loop()' design would have conflicted with connectWiFi()'s multi-minute Wi-Fi-reconnect retry tiers. Fixed in design: pet inside that retry loop specifically, not just at the top of loop()."
   ]
 }
+
