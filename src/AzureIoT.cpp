@@ -2,6 +2,7 @@
 #include "platform.h"
 #include <PubSubClient.h>
 #include <string.h>
+#include <math.h>
 #include "sas_token.h"
 #include "dps_client.h"
 #include "reset.h"
@@ -170,13 +171,41 @@ bool AzureIoTClass::ensureMqttConnected() {
     return false;
 }
 
+// Formats `value` to 2 decimal places into buf, using ONLY integer
+// formatting (%ld, never %f). This isn't a style choice -- AVR's default
+// C library does NOT support %f in snprintf() at all: avr-libc's own
+// manual documents that the default (and minimized) vfprintf()
+// implementations skip floating-point conversions entirely unless the
+// sketch is linked with extra flags (-Wl,-u,vfprintf -lprintf_flt -lm)
+// that Arduino sketches don't set by default. Without them, %f silently
+// prints a literal '?' instead of the number -- confirmed by a real user
+// whose board published {"temperature":?} to Azure. Doing the conversion
+// by hand here avoids depending on any platform's printf float support at
+// all, so it's correct on AVR (with or without the float-printf flags),
+// ESP32, and anywhere else this library runs.
+static int formatFloat2dp(char *buf, size_t bufCap, float value) {
+    if (isnan(value) || isinf(value)) {
+        return snprintf(buf, bufCap, "0.00"); // never feed a pathological value into the integer math below
+    }
+    bool negative = value < 0.0f;
+    float absValue = negative ? -value : value;
+    long scaled = (long)(absValue * 100.0f + 0.5f); // round to the nearest 0.01
+    long intPart = scaled / 100;
+    long fracPart = scaled % 100;
+    return snprintf(buf, bufCap, "%s%ld.%02ld", negative ? "-" : "", intPart, fracPart);
+}
+
 // Appends `,"key":value` (or `"key":value` if first) to buf, tracking
 // remaining space by hand -- fixed buffers only, no heap allocation, so a
 // long-running board doesn't fragment its 6KB of SRAM over hours of use.
 static bool appendField(char *buf, size_t bufCap, size_t *pos, bool first,
                          const char *key, float value) {
-    int n = snprintf(buf + *pos, bufCap - *pos, "%s\"%s\":%.2f",
-                      first ? "" : ",", key, value);
+    char valueStr[24];
+    int vn = formatFloat2dp(valueStr, sizeof(valueStr), value);
+    if (vn <= 0 || (size_t)vn >= sizeof(valueStr)) return false;
+
+    int n = snprintf(buf + *pos, bufCap - *pos, "%s\"%s\":%s",
+                      first ? "" : ",", key, valueStr);
     if (n < 0 || (size_t)n >= bufCap - *pos) return false;
     *pos += (size_t)n;
     return true;
