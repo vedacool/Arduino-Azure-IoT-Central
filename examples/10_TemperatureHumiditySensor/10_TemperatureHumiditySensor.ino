@@ -1,4 +1,4 @@
-// Exercise 6 -- Temperature & Humidity Sensor
+// Example 10 -- Temperature & Humidity Sensor
 //
 // Grove Temperature & Humidity Sensor (DHT11) on digital pin 2, connected
 // to Azure IoT Central via the AzureIoT library.

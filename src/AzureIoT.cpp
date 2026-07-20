@@ -2,6 +2,7 @@
 #include "platform.h"
 #include <PubSubClient.h>
 #include <string.h>
+#include <stdlib.h>
 #include <math.h>
 #include "sas_token.h"
 #include "dps_client.h"
@@ -49,6 +50,19 @@ static unsigned long s_lastMqttAttemptMillis = 0;
 struct StagedValue { const char *key; float value; bool set; };
 static StagedValue s_staged[16];
 static size_t s_stagedCount = 0;
+
+// Writable boolean properties -- onBoolProperty() registers here; the MQTT
+// message callback (see mqttMessageCallback() below) matches incoming twin
+// data against this table by name and invokes the matching callback.
+struct BoolPropertyReg { const char *name; AzureIoTClass::BoolPropertyCallback callback; };
+static BoolPropertyReg s_boolProps[16];
+static size_t s_boolPropCount = 0;
+static unsigned long s_twinRequestId = 0;
+
+// Forward declarations -- defined further down (near the other JSON
+// helpers), but referenced from ensureMqttConnected() above that point.
+static void requestFullTwin();
+static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int length);
 
 static void connectWiFi() {
     // Tracks cumulative time since Wi-Fi was last known good, across
@@ -164,6 +178,14 @@ bool AzureIoTClass::ensureMqttConnected() {
     Serial.println(s_deviceId);
     if (s_mqttClient.connect(s_deviceId, username, s_sasToken)) {
         Serial.println("MQTT connected.");
+        if (s_boolPropCount > 0) {
+            // Only pay for the subscribe + twin GET round-trip if the sketch
+            // actually registered a property -- sketches that only publish()
+            // telemetry never touch this at all.
+            s_mqttClient.subscribe("$iothub/twin/PATCH/properties/desired/#");
+            s_mqttClient.subscribe("$iothub/twin/res/#");
+            requestFullTwin();
+        }
         return true;
     }
     Serial.print("MQTT connect failed, rc=");
@@ -237,6 +259,118 @@ static void appendJsonEscaped(char *buf, size_t bufCap, size_t *pos, const char 
             buf[(*pos)++] = (char)c;
         }
         s++;
+    }
+}
+
+// Finds `"key":true` or `"key":false` in a JSON blob (Azure twin JSON never
+// quotes booleans) and writes the result to *out. Same substring-search
+// philosophy as dps_client.cpp's extractJsonString() -- not a full JSON
+// parser, but reliable for the twin JSON shapes this library actually
+// receives.
+static bool extractJsonBool(const char *json, const char *key, bool *out) {
+    char pattern[40];
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    const char *p = strstr(json, pattern);
+    if (!p) return false;
+    p += strlen(pattern);
+    p = strchr(p, ':');
+    if (!p) return false;
+    p++;
+    while (*p == ' ') p++;
+    if (strncmp(p, "true", 4) == 0) { *out = true; return true; }
+    if (strncmp(p, "false", 5) == 0) { *out = false; return true; }
+    return false;
+}
+
+// Same idea, for an unquoted JSON integer (used for twin "$version").
+static bool extractJsonNumber(const char *json, const char *key, unsigned long *out) {
+    char pattern[40];
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    const char *p = strstr(json, pattern);
+    if (!p) return false;
+    p += strlen(pattern);
+    p = strchr(p, ':');
+    if (!p) return false;
+    p++;
+    while (*p == ' ') p++;
+    char *endptr;
+    unsigned long v = strtoul(p, &endptr, 10);
+    if (endptr == p) return false;
+    *out = v;
+    return true;
+}
+
+// Reports a full IoT Plug-and-Play-style acknowledgment for one property, so
+// IoT Central's dashboard shows "synced" rather than stuck "pending". `name`
+// is one of the string literals passed to onBoolProperty() (short by
+// construction, like publish()'s keys), so a fixed-size buffer here is safe
+// -- snprintf's return value is still checked rather than assumed, in case a
+// sketch ever registers an unusually long property name.
+static void ackBoolProperty(const char *name, bool value, unsigned long version) {
+    char topic[48];
+    snprintf(topic, sizeof(topic), "$iothub/twin/PATCH/properties/reported/?$rid=%lu", ++s_twinRequestId);
+
+    char payload[160];
+    int n = snprintf(payload, sizeof(payload),
+                      "{\"%s\":{\"value\":%s,\"ac\":200,\"av\":%lu,\"ad\":\"completed\"}}",
+                      name, value ? "true" : "false", version);
+    if (n <= 0 || (size_t)n >= sizeof(payload)) {
+        Serial.println("AzureIoT: property name too long to ack -- dropped.");
+        return;
+    }
+    s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)n);
+}
+
+// Requests the full current twin once per connection, so a dashboard toggle
+// flipped while the device was offline is picked up immediately on
+// reconnect, rather than waiting for the next change. Response arrives
+// asynchronously in mqttMessageCallback() below (topic "$iothub/twin/res/#").
+static void requestFullTwin() {
+    char topic[32];
+    snprintf(topic, sizeof(topic), "$iothub/twin/GET/?$rid=%lu", ++s_twinRequestId);
+    s_mqttClient.publish(topic, (const uint8_t *)"", 0);
+}
+
+// PubSubClient's message callback. Handles two message shapes:
+//  - "$iothub/twin/res/..."  -- response to our own requestFullTwin() GET
+//    (full twin doc: {"desired":{...},"reported":{...}}), OR the empty ack
+//    for our own ackBoolProperty() push (which we simply ignore).
+//  - "$iothub/twin/PATCH/properties/desired/..." -- an incremental change
+//    pushed live while connected (just the changed keys, e.g.
+//    {"ledState":true,"$version":6}).
+// Not a full JSON parser (same philosophy as dps_client.cpp): for the twin
+// GET response, "desired" appears before "reported" in Azure's twin JSON, so
+// searching from that point on reliably reaches the right section without
+// needing real nested-object parsing -- confirmed against Azure's
+// documented twin JSON shape, not just assumed.
+static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int length) {
+    if (s_boolPropCount == 0) return; // no sketch-registered properties to match against
+
+    char body[300];
+    if (length >= sizeof(body)) length = sizeof(body) - 1; // truncate rather than overflow
+    memcpy(body, payload, length);
+    body[length] = '\0';
+
+    bool isTwinRes = strncmp(topic, "$iothub/twin/res/", 17) == 0;
+    bool isDesiredPatch = strncmp(topic, "$iothub/twin/PATCH/properties/desired", 38) == 0;
+    if (!isTwinRes && !isDesiredPatch) return;
+
+    const char *searchIn = body;
+    if (isTwinRes) {
+        const char *desired = strstr(body, "\"desired\"");
+        if (!desired) return; // an ack for our own reported-property push, not a GET response -- nothing to do
+        searchIn = desired;
+    }
+
+    unsigned long version = 0;
+    extractJsonNumber(searchIn, "$version", &version);
+
+    for (size_t i = 0; i < s_boolPropCount; i++) {
+        bool value;
+        if (extractJsonBool(searchIn, s_boolProps[i].name, &value)) {
+            s_boolProps[i].callback(value);
+            ackBoolProperty(s_boolProps[i].name, value, version);
+        }
     }
 }
 
@@ -344,6 +478,12 @@ void AzureIoTClass::begin(const char *wifiSsid, const char *wifiPassword,
     // setBufferSize() below.
     configureSecureClient(s_wifiClient);
 
+    // Registered once, unconditionally -- cheap (a function pointer, no
+    // allocation) even for sketches that never call onBoolProperty(), so
+    // there's no reason to gate this behind s_boolPropCount like the
+    // subscribe/twin-GET calls in ensureMqttConnected() are.
+    s_mqttClient.setCallback(mqttMessageCallback);
+
     // Retry provisioning with exponential backoff instead of halting
     // forever on the first failure -- a transient Azure-side hiccup or a
     // DHCP/DNS blip during boot shouldn't brick the board until someone
@@ -426,6 +566,33 @@ void AzureIoTClass::publish(const char *key, float value) {
 
 void AzureIoTClass::sendNow() {
     flush();
+}
+
+void AzureIoTClass::onBoolProperty(const char *name, BoolPropertyCallback callback) {
+    if (s_boolPropCount < 16) {
+        s_boolProps[s_boolPropCount].name = name;
+        s_boolProps[s_boolPropCount].callback = callback;
+        s_boolPropCount++;
+    } else {
+        Serial.println("AzureIoT.onBoolProperty: too many properties registered (max 16) -- dropped.");
+    }
+}
+
+void AzureIoTClass::reportBoolProperty(const char *name, bool value) {
+    // Flat form -- {"name":value} -- no ac/av/ad wrapper, since that
+    // convention specifically means "acknowledging a particular desired
+    // version" (see ackBoolProperty() above), which doesn't apply to a
+    // device-initiated change nothing from the cloud asked for.
+    char topic[48];
+    snprintf(topic, sizeof(topic), "$iothub/twin/PATCH/properties/reported/?$rid=%lu", ++s_twinRequestId);
+
+    char payload[64];
+    int n = snprintf(payload, sizeof(payload), "{\"%s\":%s}", name, value ? "true" : "false");
+    if (n <= 0 || (size_t)n >= sizeof(payload)) {
+        Serial.println("AzureIoT.reportBoolProperty: property name too long -- dropped.");
+        return;
+    }
+    s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)n);
 }
 
 void AzureIoTClass::setDpsGlobalHost(const char *host) {

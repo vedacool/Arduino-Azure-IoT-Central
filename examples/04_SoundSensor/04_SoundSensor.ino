@@ -1,4 +1,4 @@
-// Exercise 3 -- Sound Sensor
+// Example 4 -- Sound Sensor
 //
 // Grove Sound Sensor on analog pin A2, connected to Azure IoT Central via
 // the AzureIoT library.

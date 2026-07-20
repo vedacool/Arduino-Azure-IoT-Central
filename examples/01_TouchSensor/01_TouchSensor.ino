@@ -1,7 +1,7 @@
-// Exercise 5 -- Turbidity Sensor
+// Example 1 -- Touch Sensor
 //
-// Grove Turbidity Sensor on analog pin A3, connected to Azure IoT Central
-// via the AzureIoT library.
+// Grove Touch Sensor on digital pin 3, connected to Azure IoT Central via
+// the AzureIoT library.
 //
 // Setup: edit config.h in this folder with your
 // Wi-Fi + Azure credentials before uploading.
@@ -9,10 +9,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_TURBIDITY = A3;
+const int PIN_TOUCH = 3;
 
 void setup() {
     Serial.begin(115200);
+    pinMode(PIN_TOUCH, INPUT);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data
     // (default 5000ms / 5 seconds). Uncomment and adjust if you want it
@@ -25,11 +26,8 @@ void setup() {
 void loop() {
     AzureIoT.loop(); // always call this once per loop() -- handles reconnects + sending
 
-    // Standard Grove turbidity sensor conversion math.
-    int sensorValue = analogRead(PIN_TURBIDITY);
-    float turbidity = sensorValue * (5.0f / 1024.0f);
+    int touchSense = digitalRead(PIN_TOUCH);
+    AzureIoT.publish("touch", (float)touchSense);
 
-    AzureIoT.publish("turbidity", turbidity);
-
-    delay(200); // read a few times a second; AzureIoT.loop() decides when to actually send
+    delay(100); // touch is a fast-changing input, so poll it a bit quicker
 }

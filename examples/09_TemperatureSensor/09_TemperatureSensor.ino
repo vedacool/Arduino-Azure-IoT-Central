@@ -1,4 +1,4 @@
-// Exercise 1 -- Temperature Sensor
+// Example 9 -- Temperature Sensor
 //
 // Grove Temperature Sensor (thermistor) on analog pin A0, connected to
 // Azure IoT Central via the AzureIoT library.

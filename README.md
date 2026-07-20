@@ -2,7 +2,7 @@
 
 An Arduino library that connects a Uno WiFi Rev2 **or an ESP32 board** to Azure IoT Central: Wi-Fi, on-device Azure DPS provisioning, and MQTT telemetry — no PC-side tools, no editing library files, no config-table to learn.
 
-If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has ten ready-to-run sketches, one per Grove sensor type, each a short, complete sketch you can read top to bottom — plus a connection-test sketch that needs no sensor at all.
+If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has twenty ready-to-run sketches -- sensors, actuators, and combinations of both, including cloud-to-device control -- each a short, complete sketch you can read top to bottom, plus a connection-test sketch that needs no hardware at all.
 
 ---
 
@@ -15,7 +15,7 @@ If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Cent
 **Alternative (manual):** clone or unzip this repo, then rename the resulting folder to `AzureIoT` and place it directly in your Arduino libraries folder:
 - Windows/Mac/Linux: `Documents/Arduino/libraries/AzureIoT`
 
-Either way, restart the Arduino IDE afterward. You should now see **File → Examples → AzureIoT** listing the ten examples.
+Either way, restart the Arduino IDE afterward. You should now see **File → Examples → AzureIoT** listing the twenty examples.
 
 ### 2. Board-specific setup
 
@@ -83,23 +83,35 @@ Check IoT Central → **Devices → your device → View** — you should see th
 
 ## The examples
 
-All ten numbered examples use **Seeed Studio Grove-ecosystem sensor modules**, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
+All twenty numbered examples use **Seeed Studio Grove-ecosystem sensor and actuator modules**, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
 
-**If you're on ESP32** (or any board without a Grove Base Shield): these examples assume you either have Grove-to-breadboard adapter cables for your specific board, or you're substituting an equivalent non-Grove sensor and wiring it directly — in which case update the pin constant near the top of each `.ino` (e.g. `const int PIN_TEMPERATURE = A0;`) to match your actual wiring, and check whether your specific ESP32 board's analog/digital pin numbering matches these constants at all (ESP32 boards vary in which GPIOs are broken out and analog-capable). `00_ConnectionTest` needs none of this — it's the one example with no sensor hardware requirement at all.
+**If you're on ESP32** (or any board without a Grove Base Shield): these examples assume you either have Grove-to-breadboard adapter cables for your specific board, or you're substituting an equivalent module and wiring it directly — in which case update the pin constant near the top of each `.ino` (e.g. `const int PIN_TEMPERATURE = A0;`) to match your actual wiring, and check whether your specific ESP32 board's analog/digital pin numbering matches these constants at all (ESP32 boards vary in which GPIOs are broken out and analog-capable). `00_ConnectionTest` needs none of this — it's the one example with no hardware requirement at all.
 
-| # | Example | Sensor | Pin |
+They're numbered roughly easiest-to-hardest, not alphabetically or by sensor type -- a good order to work through if you're new to this:
+
+| # | Example | What it demonstrates | Hardware / pin |
 |---|---|---|---|
 | — | `00_ConnectionTest` | **None** — just proves Wi-Fi/DPS/MQTT work, no wiring needed. Start here. | — |
-| 1 | `01_TemperatureSensor` | Grove Temperature (thermistor) | A0 |
-| 2 | `02_RotaryAngleSensor` | Grove Rotary Angle | A1 |
-| 3 | `03_SoundSensor` | Grove Sound | A2 |
-| 4 | `04_TouchSensor` | Grove Touch | Digital pin 3 |
-| 5 | `05_TurbiditySensor` | Grove Turbidity | A3 |
-| 6 | `06_TemperatureHumiditySensor` | Grove Temp & Humidity (DHT11) | Digital pin 2 (needs one extra library — see the comment at the top of that sketch) |
-| 7 | `07_ButtonSensor` | Grove Button | Digital pin 4 |
-| 8 | `08_LightSensor` | Grove Light (photoresistor) | A4 |
-| 9 | `09_WaterSensor` | Grove Water | Digital pin 5 |
-| 10 | `10_MoistureSensor` | Grove Moisture | A5 |
+| 1 | `01_TouchSensor` | Simplest possible read: digital in, publish | Grove Touch, digital pin 3 |
+| 2 | `02_ButtonSensor` | Same shape as Touch | Grove Button, digital pin 4 |
+| 3 | `03_WaterSensor` | Digital in, publish | Grove Water, digital pin 5 |
+| 4 | `04_SoundSensor` | Analog in (averaged), publish | Grove Sound, A2 |
+| 5 | `05_LightSensor` | Analog in, publish | Grove Light (photoresistor), A4 |
+| 6 | `06_MoistureSensor` | Analog in, publish | Grove Moisture, A5 |
+| 7 | `07_RotaryAngleSensor` | Analog in + voltage/degree math | Grove Rotary Angle, A1 |
+| 8 | `08_TurbiditySensor` | Analog in + voltage conversion | Grove Turbidity, A3 |
+| 9 | `09_TemperatureSensor` | Analog in + nonlinear thermistor math | Grove Temperature, A0 |
+| 10 | `10_TemperatureHumiditySensor` | Needs an extra library (DHT11) — first real dependency | Grove Temp & Humidity, digital pin 2 |
+| 11 | `11_LedStatusReport` | First actuator example — reports its own state, no cloud control | Grove LED, digital pin 7 |
+| 12 | `12_BuzzerStatusReport` | Same shape, second actuator | Grove Buzzer, digital pin 6 |
+| 13 | `13_RotaryAngleLedDimmer` | First analog *output* (PWM) | Rotary Angle (A1) → LED (PWM pin 3) |
+| 14 | `14_WaterAlarm` | First "one sensor drives multiple actuators" | Water (pin 5) → Buzzer (pin 6) + LED (pin 7) |
+| 15 | `15_LedCloudControl` | First bidirectional example — `onBoolProperty()` | Grove LED, digital pin 7 |
+| 16 | `16_BuzzerCloudControl` | Reinforces bidirectional control, second actuator | Grove Buzzer, digital pin 6 |
+| 17 | `17_ClapToToggleLed` | Event-driven local logic + cloud control combined | Sound (A2) → LED (pin 7) |
+| 18 | `18_AutoNightLight` | Automatic sensor-threshold logic + cloud override | Light (A4) → LED (pin 7) |
+| 19 | `19_ComfortAlarm` | Same pattern as 18, with the harder DHT11 sensor | Temp & Humidity (pin 2) → Buzzer (pin 6) |
+| 20 | `20_ButtonLedTwoWaySync` | Hardest: sensor + actuator + full two-way sync | Button (pin 4) + LED (pin 7) |
 
 Every example is the same three-part shape:
 ```cpp
@@ -131,8 +143,36 @@ A few things worth knowing:
 - **`publish()` only stages a value — it doesn't send anything by itself.** `AzureIoT.loop()` sends everything staged since the last send, as one combined JSON message, on a timer (default 5 seconds, override with `setSendInterval()`). Call `publish()` as often as you like — from a fast loop, from inside an `if`, whatever — the actual send rate stays bounded and predictable. This matters if you have several boards sharing one Wi-Fi network and one Azure app: unbounded sends per sensor reading would make the network and Azure app noisy fast.
 - **Need an immediate send** instead of waiting for the timer (e.g. reacting to a button press)? Call `AzureIoT.sendNow()`.
 - **`publish()`'s key must be a string literal** (`"temperature"`, not something built at runtime) — the pointer is kept, not copied.
-- Publishing multiple values before a send combines them into one message: `{"temperature":24.00,"humidity":55.00}` — see Example 6, which reads both from one DHT11.
+- Publishing multiple values before a send combines them into one message: `{"temperature":24.00,"humidity":55.00}` — see Example 10, which reads both from one DHT11.
 - **Want to send text instead of a number?** `AzureIoT.publishText(key, value)` sends a string value immediately (JSON-escaped for you) — unlike `publish()`, it doesn't stage/batch, so it's meant for occasional status messages and connection testing (see `00_ConnectionTest`), not high-frequency telemetry.
+
+## Cloud-to-device control: writable properties
+
+Everything above is device → cloud (telemetry). `onBoolProperty()` and `reportBoolProperty()` add the other direction: letting an IoT Central dashboard toggle control something on the device (an LED, a buzzer, anything binary), as a **writable property** rather than a one-shot command -- meaning it's persistent and survives a reconnect: if the dashboard toggle was flipped while the device was offline, the device picks up the correct state the moment it reconnects, not just on the next change.
+
+```cpp
+void onLedState(bool on) {
+    digitalWrite(LED_BUILTIN, on ? HIGH : LOW);
+}
+
+void setup() {
+    AzureIoT.onBoolProperty("ledState", onLedState); // call BEFORE begin()
+    AzureIoT.begin(...);
+}
+
+void loop() {
+    AzureIoT.loop(); // delivers property updates to onLedState(), same call as always
+}
+```
+
+A few things worth knowing:
+
+- **You still need to add the property to your device template in IoT Central** (Devices → your device's template → Add capability → Property → Writable, boolean) — the library change alone doesn't make a control appear in the dashboard; IoT Central needs to know the property exists and what type it is.
+- **`name` follows the same rule as `publish()`'s key** — pass a string literal (`"ledState"`), not something built at runtime.
+- **The dashboard shows "synced" automatically.** After your callback returns, the library sends a full IoT Plug-and-Play-style acknowledgment (value, status, version) back to Azure — you don't write any of that yourself.
+- **Fixed cap of 16 registrations**, same reasoning and same number as `publish()`'s staged-keys limit: this library never heap-allocates, so an unbounded list isn't an option on a 6KB-RAM board, and 16 is generous headroom for any real project without that risk.
+- **If local logic (not the cloud) changes something the dashboard also controls** -- a physical button toggling an LED, a sensor threshold triggering a buzzer -- call `AzureIoT.reportBoolProperty(name, value)` to tell Azure about it, so the dashboard reflects the change instead of only showing whatever it last set itself. This sends a plain reported-property update, deliberately without the ack fields `onBoolProperty()`'s automatic response uses -- those specifically mean "responding to a particular desired-property version," which doesn't apply to a change nothing from the cloud asked for. See `17_ClapToToggleLed`, `18_AutoNightLight`, `19_ComfortAlarm`, and `20_ButtonLedTwoWaySync` for this in practice.
+- **If MQTT isn't connected when you call `reportBoolProperty()`, it's silently dropped**, not queued or retried -- the same "fire and forget" tradeoff `publish()` already makes.
 
 ---
 
@@ -160,7 +200,8 @@ The reset uses `RSTCTRL.SWRR` on Uno WiFi Rev2 (megaAVR-0's dedicated software-r
 - **Peak stack depth on Uno WiFi Rev2** during DPS provisioning is ~2.2–2.6KB on a board with 6KB total SRAM (measured with `avr-gcc -fstack-usage` against the real functions, not estimated) -- but this only happens once, at boot, before the MQTT heap buffer even exists yet. Not a concern on ESP32 (hundreds of KB of RAM). Not endurance-tested on real Uno WiFi Rev2 hardware yet.
 - **`reset.cpp`'s Uno WiFi Rev2 branch is not compile-tested** in the environment this was built in -- it needs the real `atmega4809` device header, only available through Arduino's own Board Manager toolchain. Confirmed against two independent sources (the official datasheet and Arduino's own bootloader source for this chip) but not built or run for real. The ESP32 branch (`ESP.restart()`) was compiled and run against the real Arduino-ESP32 core's documented API, but likewise not on physical ESP32 hardware. Test both once on real hardware -- deliberately hang the sketch and confirm it actually resets -- before depending on either for unattended operation.
 - **The self-healing above catches "stuck disconnected," not an arbitrary hang.** If something else entirely freezes the sketch (e.g. a library bug wedging mid-`loop()` with Wi-Fi otherwise fine), nothing currently recovers from that on either board.
-- **`extractJsonString()`** (inside the library's `dps_client.cpp`) is a lightweight substring search, not a full JSON parser -- matches Azure's documented DPS response format but isn't robust to Azure changing that structure.
+- **`extractJsonString()`** (inside the library's `dps_client.cpp`) is a lightweight substring search, not a full JSON parser -- matches Azure's documented DPS response format but isn't robust to Azure changing that structure. The writable-property feature's `extractJsonBool()`/`extractJsonNumber()` (in `AzureIoT.cpp`) are the same kind of substring search, with the same tradeoff -- functionally tested against realistic twin JSON (see "What's been verified" below), but not a general parser.
+- **`reportBoolProperty()` doesn't queue or retry** if MQTT isn't connected when you call it -- the update is silently dropped, same "fire and forget" tradeoff `publish()` already makes. If a device-initiated property change happens to coincide with a Wi-Fi blip, the dashboard won't reflect it until the next change.
 - **Uno WiFi Rev2's ATECC608 crypto chip goes unused** -- authentication here is a software-computed SAS token (symmetric key), not the hardware-backed X.509 approach the chip is designed for. That'd be a bigger redesign. (ESP32 has no equivalent hardware secure element in most variants, so this doesn't apply there.)
 
 ## What's been verified (and how)
@@ -171,7 +212,8 @@ The reset uses `RSTCTRL.SWRR` on Uno WiFi Rev2 (megaAVR-0's dedicated software-r
 - **`publish()`/`loop()` staging and flush logic**: directly unit-tested -- overwrite semantics (publishing the same key twice before a send keeps only the latest value), correct clearing after a send, multiple keys combined into one message, and 50 rapid calls collapsing to one field per key (confirming the bounded send-rate design actually holds).
 - **`publishText()`'s JSON escaping**: unit-tested against 9 cases (plain text, embedded quotes, backslashes, newlines/tabs/carriage returns, control characters, empty strings, and buffer-boundary behavior with a deliberately undersized buffer) -- all correct, confirmed byte-for-byte against expected output. Also verified end-to-end that the final published payload matches what a JSON parser would expect (e.g. `device online, say "hi"` correctly becomes `{"status":"device online, say \"hi\""}`, not malformed JSON).
 - **Long-run escalation logic, both platforms**: the exponential-backoff arithmetic was isolated and checked in a standalone repro before being trusted inside the sketch. The full Wi-Fi-escalation and provisioning-backoff paths were then each tested end-to-end through the real, unmodified `AzureIoT.cpp` -- once against a WiFiNINA-signature mock, once against an ESP32-signature mock -- confirming identical behavior on both: the reinit fires once at the 1-minute mark, the reset fires once afterward at the 5-minute mark, and provisioning failures (with Wi-Fi otherwise fine) never trigger either one.
-- **All ten example sketches** compiled cleanly against mocks of the real libraries for both platforms; the full library + one example were linked and run end-to-end on both, including a live check that the ESP32 path correctly wires the embedded certificate into `WiFiClientSecure::setCACert()`. (The four newest examples -- Button, Light, Water, Moisture -- were syntax/type-checked against a lighter mock covering the Arduino core calls and the `AzureIoT` public API they actually use, which is everything a sketch calls; they weren't re-run through the original six's fuller WiFiNINA/PubSubClient-signature mock, since none of that surface is exercised by sketch code.)
+- **All twenty example sketches** were syntax/type-checked against a mock covering the Arduino core calls and the `AzureIoT` public API they actually use (which is everything a sketch calls). The original six (now renumbered 1, 4, 7, 8, 9, 10) additionally went through a fuller WiFiNINA/PubSubClient-signature mock and an end-to-end run on both platforms, including a live check that the ESP32 path correctly wires the embedded certificate into `WiFiClientSecure::setCACert()` -- the fourteen added later weren't re-run through that fuller mock, since none of that surface (WiFiNINA/PubSubClient internals) is exercised by sketch code either way.
+- **The writable-property feature** (`onBoolProperty()`/`reportBoolProperty()`, added for cloud-to-device control): the library itself was recompiled against a full mock of `PubSubClient`/`WiFiNINA`/`platform.h` after every change (clean, zero warnings), and the JSON-parsing logic (`extractJsonBool()`/`extractJsonNumber()`, and the "search from the `desired` section onward" logic used against a full twin-GET response) was functionally tested against realistic Azure twin JSON: a live incremental patch, a full twin document with both `desired` and `reported` sections present, multiple properties changing in one patch, a property absent from a patch, and an empty ack response for the device's own reported-property push -- all passing, including the specific case that `desired` is found before `reported` even when both contain the same property name.
 - **Not verified on either platform**: real hardware, real Azure credentials. **Uno WiFi Rev2 additionally**: the exact `atmega4809` compiler device pack isn't available in this sandbox (only through Arduino's own Board Manager). **ESP32 additionally**: Espressif's Xtensa/RISC-V toolchain isn't available in this sandbox either -- verification there used real, source-confirmed API signatures compiled and run on x86, not the actual ESP32 toolchain. Compile and test against one real device (of whichever board family you're using) before relying on this for a fleet of devices.
 
 ---

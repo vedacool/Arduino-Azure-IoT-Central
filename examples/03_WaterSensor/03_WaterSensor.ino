@@ -1,9 +1,7 @@
-// Example 10 -- Moisture Sensor
+// Example 3 -- Water Sensor
 //
-// Grove Moisture Sensor on analog pin A5, connected to Azure IoT Central
-// via the AzureIoT library. Publishes the raw ADC reading (0-1023, higher
-// = wetter). Don't insert the sensor into soil past its "highest position"
-// line.
+// Grove Water Sensor on digital pin 5, connected to Azure IoT Central via
+// the AzureIoT library. Publishes 1 when water is detected, 0 otherwise.
 //
 // Setup: edit config.h in this folder with your
 // Wi-Fi + Azure credentials before uploading.
@@ -11,11 +9,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_MOISTURE = A5;
+const int PIN_WATER = 5;
 
 void setup() {
     Serial.begin(115200);
-    pinMode(PIN_MOISTURE, INPUT);
+    pinMode(PIN_WATER, INPUT);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data
     // (default 5000ms / 5 seconds). Uncomment and adjust if you want it
@@ -28,8 +26,8 @@ void setup() {
 void loop() {
     AzureIoT.loop(); // always call this once per loop() -- handles reconnects + sending
 
-    int sensorValue = analogRead(PIN_MOISTURE);
-    AzureIoT.publish("moisture", (float)sensorValue);
+    int wet = digitalRead(PIN_WATER);
+    AzureIoT.publish("water", (float)wet);
 
-    delay(200); // read a few times a second; AzureIoT.loop() decides when to actually send
+    delay(500);
 }

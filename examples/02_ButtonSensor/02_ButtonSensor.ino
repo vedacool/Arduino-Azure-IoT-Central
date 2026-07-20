@@ -1,7 +1,8 @@
-// Exercise 4 -- Touch Sensor
+// Example 2 -- Button
 //
-// Grove Touch Sensor on digital pin 3, connected to Azure IoT Central via
-// the AzureIoT library.
+// Grove Button (or a plain pushbutton) on digital pin 4, connected to
+// Azure IoT Central via the AzureIoT library. Publishes 1 while pressed,
+// 0 while released.
 //
 // Setup: edit config.h in this folder with your
 // Wi-Fi + Azure credentials before uploading.
@@ -9,11 +10,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_TOUCH = 3;
+const int PIN_BUTTON = 4;
 
 void setup() {
     Serial.begin(115200);
-    pinMode(PIN_TOUCH, INPUT);
+    pinMode(PIN_BUTTON, INPUT);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data
     // (default 5000ms / 5 seconds). Uncomment and adjust if you want it
@@ -26,8 +27,8 @@ void setup() {
 void loop() {
     AzureIoT.loop(); // always call this once per loop() -- handles reconnects + sending
 
-    int touchSense = digitalRead(PIN_TOUCH);
-    AzureIoT.publish("touch", (float)touchSense);
+    int pressed = digitalRead(PIN_BUTTON);
+    AzureIoT.publish("button", (float)pressed);
 
-    delay(100); // touch is a fast-changing input, so poll it a bit quicker
+    delay(100); // a button is a fast-changing input, so poll it a bit quicker
 }

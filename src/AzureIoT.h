@@ -113,6 +113,55 @@ public:
     // text for you.
     void publishText(const char *key, const char *value);
 
+    // ---- Cloud-to-device control: writable boolean properties ----
+    //
+    // Lets IoT Central's dashboard control something on the device (an LED,
+    // a buzzer, anything binary) via a WRITABLE PROPERTY -- a persistent
+    // toggle, not a one-shot command. Unlike a command, a property survives
+    // a device reboot/reconnect: if the dashboard toggle was flipped while
+    // the device was offline, the device picks up the correct state the
+    // moment it reconnects (via a one-time twin GET), not just on the next
+    // change.
+    //
+    //   void onLed(bool on) { digitalWrite(LED_BUILTIN, on ? HIGH : LOW); }
+    //
+    //   void setup() {
+    //     AzureIoT.onBoolProperty("ledState", onLed);   // call BEFORE begin()
+    //     AzureIoT.begin(...);
+    //   }
+    //
+    // `name` must be a string literal (same rule as publish()'s key -- the
+    // pointer is kept, not copied). Your callback is invoked from inside
+    // AzureIoT.loop() whenever IoT Central's dashboard changes this
+    // property, and again once at startup with whatever value was already
+    // set server-side (even if that happened while the device was off).
+    // After your callback returns, the library automatically reports back a
+    // full IoT Plug-and-Play-style acknowledgment (value/status/version), so
+    // the dashboard shows the toggle as "synced" rather than stuck
+    // "pending" -- you don't need to do anything for that part.
+    //
+    // Fixed-size registration table (max 16, same cap as publish()'s staged
+    // keys, for the same reason: this library never heap-allocates, so an
+    // unbounded/dynamic list isn't an option on a 6KB-RAM board -- a
+    // generous fixed cap gets you effectively all the headroom a real
+    // project needs without that risk). Registering more than 16 drops the
+    // extra ones with a Serial warning, same as publish()'s own limit.
+    typedef void (*BoolPropertyCallback)(bool value);
+    void onBoolProperty(const char *name, BoolPropertyCallback callback);
+
+    // Reports a property change the DEVICE itself decided to make (e.g. a
+    // physical button press toggling an LED) -- as opposed to a change that
+    // came FROM the cloud, which onBoolProperty()'s automatic ack already
+    // handles. Call this any time local logic changes something that's
+    // also registered via onBoolProperty(), so the dashboard reflects it
+    // rather than only showing the last value IT set. This sends a plain
+    // reported-property update (no ac/av/ad ack fields -- those specifically
+    // mean "responding to a particular desired-property version", which
+    // doesn't apply here since nothing from the cloud triggered this).
+    // If MQTT isn't currently connected, this is silently dropped rather
+    // than queued/retried -- same "fire and forget" tradeoff as publish().
+    void reportBoolProperty(const char *name, bool value);
+
     // ---- Optional tuning, call before begin() to override a default ----
 
     // DPS endpoint (default: the global Azure IoT Central endpoint). Only

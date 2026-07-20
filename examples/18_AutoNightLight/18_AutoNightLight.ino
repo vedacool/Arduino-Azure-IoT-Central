@@ -1,0 +1,57 @@
+// Example 18 -- Auto Night Light
+//
+// Grove Light Sensor on A4 automatically turns an LED (digital pin 7) on
+// when it's dark and off when it's bright -- a SUSTAINED condition
+// (unlike 17_ClapToToggleLed's momentary event). The LED is also
+// cloud-controllable via onBoolProperty(): flip the dashboard toggle to
+// manually override the automatic behavior (e.g. force it off during the
+// day, or on even when it's not dark). The next automatic light-level
+// crossing will take back over -- this example doesn't try to "remember"
+// that you overrode it, keeping the logic simple.
+//
+// Add a boolean writable property named "ledState" to your device
+// template in IoT Central for the toggle to appear in the dashboard.
+//
+// Setup: edit config.h in this folder with your
+// Wi-Fi + Azure credentials before uploading.
+
+#include <AzureIoT.h>
+#include "config.h"
+
+const int PIN_LIGHT = A4;
+const int PIN_LED = 7;
+const int DARK_THRESHOLD = 300; // raw ADC reading below this counts as "dark" -- adjust per environment
+
+bool ledState = false;
+
+void onLedState(bool on) {
+    ledState = on;
+    digitalWrite(PIN_LED, ledState ? HIGH : LOW);
+}
+
+void setup() {
+    Serial.begin(115200);
+    pinMode(PIN_LIGHT, INPUT);
+    pinMode(PIN_LED, OUTPUT);
+
+    AzureIoT.onBoolProperty("ledState", onLedState);
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
+}
+
+void loop() {
+    AzureIoT.loop(); // always call this once per loop() -- handles reconnects, sending,
+                      // AND delivering property updates to onLedState() above
+
+    int lightLevel = analogRead(PIN_LIGHT);
+    bool shouldBeOn = lightLevel < DARK_THRESHOLD;
+
+    if (shouldBeOn != ledState) {
+        ledState = shouldBeOn;
+        digitalWrite(PIN_LED, ledState ? HIGH : LOW);
+        AzureIoT.reportBoolProperty("ledState", ledState); // tell the cloud the light level decided this
+    }
+
+    AzureIoT.publish("light", (float)lightLevel);
+
+    delay(200);
+}
