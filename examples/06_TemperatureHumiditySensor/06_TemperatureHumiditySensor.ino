@@ -21,6 +21,12 @@ DHT dht(PIN_HUMIDITY, DHT11);
 void setup() {
     Serial.begin(115200);
     dht.begin();
+
+    // Optional: how often AzureIoT.loop() sends staged publish() data
+    // (default 5000ms / 5 seconds). Uncomment and adjust if you want it
+    // faster or slower -- must be called before begin().
+    // AzureIoT.setSendInterval(5000);
+
     AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
 }
 
