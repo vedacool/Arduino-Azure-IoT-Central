@@ -1,6 +1,6 @@
 {
-  "lastAuditCommit": "d06d6a6",
-  "lastFullAuditCommit": "PENDING",
+  "lastAuditCommit": "84eea0d",
+  "lastFullAuditCommit": "84eea0d",
   "verifiedGood": [
     "src/sha256.c + src/b64url.c + src/sas_token.c -- crypto core: RFC/NIST vectors, ASan/UBSan clean, byte-identical to independent Python cross-check",
     "src/AzureIoT.cpp flush()/publishText() payload buffer construction -- adversarial long-key test confirms no overflow",
