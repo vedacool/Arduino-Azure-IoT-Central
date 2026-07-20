@@ -171,6 +171,15 @@ The reset uses `RSTCTRL.SWRR` on Uno WiFi Rev2 (megaAVR-0's dedicated software-r
 
 ---
 
+## Third-party libraries
+
+This library depends on two Arduino libraries, installed automatically by
+Library Manager: [`WiFiNINA`](https://github.com/arduino-libraries/WiFiNINA)
+(LGPL 2.1) and [`PubSubClient`](https://github.com/knolleary/pubsubclient)
+(MIT). Neither is vendored into this repo -- they're pulled in as normal
+Library Manager dependencies -- so this library's own MIT license isn't
+affected, but it's worth knowing what you're linking against.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Use it, modify it, embed it in your own projects, commercial or not.

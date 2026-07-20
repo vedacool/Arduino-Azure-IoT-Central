@@ -190,6 +190,7 @@ static int formatFloat2dp(char *buf, size_t bufCap, float value) {
     bool negative = value < 0.0f;
     float absValue = negative ? -value : value;
     long scaled = (long)(absValue * 100.0f + 0.5f); // round to the nearest 0.01
+    if (scaled == 0) negative = false; // avoid printing "-0.00" for tiny negatives that round to zero
     long intPart = scaled / 100;
     long fracPart = scaled % 100;
     return snprintf(buf, bufCap, "%s%ld.%02ld", negative ? "-" : "", intPart, fracPart);
