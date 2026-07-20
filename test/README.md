@@ -1,47 +1,29 @@
 # Tests
 
-These are plain host-buildable C tests -- no Arduino toolchain needed, just
-a regular `gcc`/`clang`. They exist so the correctness work already done on
-this library (RFC/NIST test vectors, an independent Python cross-check,
-AddressSanitizer runs) can be re-run by anyone, instead of living only in
-commit-message prose.
+A plain host-buildable C test for the crypto core (`sha256.c` / `b64url.c` /
+`sas_token.c`) -- no Arduino toolchain needed, just a regular `gcc`/`clang`.
+These three files have no Arduino dependency, so they compile and run
+directly on your machine, testing the exact same code that ships in the
+library (not a copy).
+
+It checks SHA-256 and HMAC-SHA256 against published RFC 4231 / RFC 4648 /
+NIST test vectors, base64 encode/decode (including the decode overflow
+guard), and cross-checks a full SAS token against an independent Python
+implementation.
+
+Arduino IDE never touches this folder -- it's not part of the sketch build.
+It's here for whoever next needs to verify the crypto core still does the
+right thing after a change (that might be you, a future contributor, or an
+AI assistant auditing the repo) without having to reconstruct these checks
+from scratch.
 
 ## Running
 
 ```sh
 cd test
-
-# Crypto core (sha256 / base64 / SAS token) against RFC 4648 / RFC 4231 /
-# NIST test vectors, plus a base64-decode overflow-guard check.
 gcc -Wall -Wextra -fsanitize=address,undefined -o test_crypto test_crypto.c ../src/sha256.c ../src/b64url.c ../src/sas_token.c
 ./test_crypto
-
-# formatFloat2dp() edge cases (NaN/Infinity, rounding, negative zero).
-gcc -Wall -Wextra -fsanitize=address,undefined -o test_format test_format.c -lm
-./test_format
-
-# The publish()/flush() JSON payload buffer, adversarially filled with long
-# keys, checked for overflow under ASan.
-gcc -Wall -Wextra -fsanitize=address,undefined -o test_flush_buffer test_flush_buffer.c -lm
-./test_flush_buffer
 ```
 
-All three should print `OK`/pass lines and exit 0 with no ASan/UBSan
-reports.
-
-## A note on `test_format.c` / `test_flush_buffer.c`
-
-`sha256.c`/`b64url.c`/`sas_token.c` are real portable files also compiled
-directly into the library, so `test_crypto.c` tests the actual production
-code with zero drift risk.
-
-`formatFloat2dp()` and the `appendField()`/`appendJsonEscaped()` payload
-logic, on the other hand, live as `static` (file-local) functions inside
-`src/AzureIoT.cpp`, which also pulls in Arduino/`PubSubClient` headers --
-so they can't be `#include`d directly into a host-only test. `test_format.c`
-and `test_flush_buffer.c` instead contain hand-synced copies of that logic.
-**If you change the real versions in `AzureIoT.cpp`, update these copies to
-match**, or the tests will quietly test stale logic. (A cleaner long-term
-fix would be to move these pure functions into their own portable
-`.c`/`.h` pair, the same way `sha256.c` etc. already are -- happy to do
-that refactor if useful, it just wasn't done here to keep this fix scoped.)
+Should print a series of `OK` lines ending in `ALL CRITICAL VECTORS PASSED`,
+with no ASan/UBSan reports.
