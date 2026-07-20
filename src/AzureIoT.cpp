@@ -58,11 +58,29 @@ struct BoolPropertyReg { const char *name; AzureIoTClass::BoolPropertyCallback c
 static BoolPropertyReg s_boolProps[16];
 static size_t s_boolPropCount = 0;
 static unsigned long s_twinRequestId = 0;
+static bool s_watchdogEnabled = false; // set by enableWatchdog() -- gates every platformWatchdogPet() call
+
+// reportBoolProperty()'s retry buffer -- if MQTT isn't connected (or the
+// send otherwise fails) when reportBoolProperty() is called, the change is
+// staged here instead of being lost outright, and retried from loop() once
+// MQTT reconnects. Same overwrite semantics as s_staged[] above: if the
+// same property changes again before the retry goes out, only the latest
+// value matters, so this is one slot per distinct property name, not a
+// growing queue of every historical change -- fixed size, no heap, same
+// reasoning as every other table in this file. Independent from
+// s_boolProps[] above (which is onBoolProperty()'s CLOUD -> device
+// registration table) since reportBoolProperty() doesn't require a prior
+// onBoolProperty() registration for the same name -- decoupled on purpose,
+// matching how publish()'s keys are independent of anything else.
+struct PendingReport { const char *name; bool value; bool pending; };
+static PendingReport s_pendingReports[16];
+static size_t s_pendingReportCount = 0;
 
 // Forward declarations -- defined further down (near the other JSON
 // helpers), but referenced from ensureMqttConnected() above that point.
 static void requestFullTwin();
 static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int length);
+static void retryPendingReports();
 
 static void connectWiFi() {
     // Tracks cumulative time since Wi-Fi was last known good, across
@@ -87,6 +105,7 @@ static void connectWiFi() {
         bool restartAttempt = false;
         while (WiFi.status() != WL_CONNECTED && millis() - start < s_wifiConnectTimeoutMs) {
             delay(500);
+            if (s_watchdogEnabled) platformWatchdogPet(); // this loop can run for minutes (see the reinit/reset tiers below) -- must not starve the watchdog
             Serial.print(".");
 
             if (millis() - downSince > s_wifiForceResetAfterMs) {
@@ -119,6 +138,14 @@ static void connectWiFi() {
     // an explicit NTP kick (platformBeginTimeSync() below) first.
     platformBeginTimeSync();
     Serial.print("Waiting for network time");
+    // Deliberately NOT petting the watchdog in this loop, unlike the
+    // Wi-Fi-connect wait above: that loop has its own escalation tiers
+    // (reinit, then reset) if Wi-Fi never comes up, but THIS loop has no
+    // timeout or fallback of its own -- if NTP is genuinely unreachable
+    // (Wi-Fi connected, but no route to the internet), it would otherwise
+    // hang forever with zero protection. Leaving it un-petted means the
+    // watchdog (if enabled) is the one thing that can still catch and
+    // recover from that specific case, rather than being fed through it.
     while (platformGetUnixTime() < 1700000000UL) { // sanity floor: after Nov 2023
         Serial.print(".");
         delay(500);
@@ -145,8 +172,20 @@ static bool refreshSasTokenIfNeeded() {
     if (s_sasToken[0] != '\0' && now < s_sasTokenExpiry - 60) {
         return true; // still valid for at least another minute
     }
-    char resourceUri[192];
-    snprintf(resourceUri, sizeof(resourceUri), "%s/devices/%s", s_iotHubHost, s_deviceId);
+    // 220, not 192: s_iotHubHost (127 chars max) + "/devices/" (9) +
+    // s_deviceId (63 chars max) + NUL = 200 -- 192 left only 8 bytes of
+    // margin, and GCC's own -Wformat-truncation flagged this as a real
+    // truncation risk (not hypothetical) if both fields were ever near
+    // their actual maximums simultaneously. Not a memory-safety bug
+    // (snprintf bounds itself), but a truncated resourceUri here would
+    // sign a SAS token against the wrong resource string, which Azure
+    // would then reject -- a real, if low-probability, functional bug.
+    char resourceUri[220];
+    int n = snprintf(resourceUri, sizeof(resourceUri), "%s/devices/%s", s_iotHubHost, s_deviceId);
+    if (n <= 0 || (size_t)n >= sizeof(resourceUri)) {
+        Serial.println("AzureIoT: internal error building resource URI for SAS token -- aborting refresh.");
+        return false;
+    }
     unsigned long expiry = now + s_sasTokenLifetimeSecs;
     if (build_sas_token(s_deviceKey, resourceUri, expiry, s_sasToken, sizeof(s_sasToken)) == 0) {
         Serial.println("Failed to build SAS token.");
@@ -551,11 +590,14 @@ void AzureIoTClass::begin(const char *wifiSsid, const char *wifiPassword,
 }
 
 void AzureIoTClass::loop() {
+    if (s_watchdogEnabled) platformWatchdogPet();
+
     if (WiFi.status() != WL_CONNECTED) {
         connectWiFi();
     }
     ensureMqttConnected();
     s_mqttClient.loop();
+    retryPendingReports(); // catch up on anything reportBoolProperty() couldn't send earlier
 
     if (millis() - s_lastFlushMillis >= s_sendIntervalMs) {
         flush();
@@ -595,25 +637,88 @@ void AzureIoTClass::onBoolProperty(const char *name, BoolPropertyCallback callba
     }
 }
 
-void AzureIoTClass::reportBoolProperty(const char *name, bool value) {
-    // Flat form -- {"name":value} -- no ac/av/ad wrapper, since that
-    // convention specifically means "acknowledging a particular desired
-    // version" (see ackBoolProperty() above), which doesn't apply to a
-    // device-initiated change nothing from the cloud asked for.
+void AzureIoTClass::enableWatchdog() {
+    platformWatchdogEnable();
+    s_watchdogEnabled = true;
+    Serial.println("Watchdog enabled -- device resets if not petted for ~8s.");
+}
+
+// Shared by reportBoolProperty() and retryPendingReports() below -- builds
+// and sends the flat {"name":value} reported-property update, returning
+// whether it actually went out. Doesn't touch s_pendingReports itself;
+// callers decide what staging/clearing to do with the result.
+static bool sendReportedProperty(const char *name, bool value) {
+    if (!s_mqttClient.connected()) return false;
+
     char topic[64]; // see ackBoolProperty() for why this needs real headroom, not just the "typical" $rid length
     int topicLen = snprintf(topic, sizeof(topic), "$iothub/twin/PATCH/properties/reported/?$rid=%lu", ++s_twinRequestId);
     if (topicLen <= 0 || (size_t)topicLen >= sizeof(topic)) {
         Serial.println("AzureIoT: internal error building report topic -- dropped.");
-        return;
+        return false;
     }
 
     char payload[64];
     int n = snprintf(payload, sizeof(payload), "{\"%s\":%s}", name, value ? "true" : "false");
     if (n <= 0 || (size_t)n >= sizeof(payload)) {
         Serial.println("AzureIoT.reportBoolProperty: property name too long -- dropped.");
-        return;
+        return false;
     }
-    s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)n);
+
+    return s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)n);
+}
+
+// Retries anything reportBoolProperty() couldn't send immediately (MQTT was
+// down, or the publish() call itself failed). Called from loop() every
+// iteration once MQTT is connected -- cheap when there's nothing pending
+// (a fixed 16-slot scan, no allocation), and stops paying that cost the
+// moment every slot is caught up.
+static void retryPendingReports() {
+    for (size_t i = 0; i < s_pendingReportCount; i++) {
+        if (!s_pendingReports[i].pending) continue;
+        if (sendReportedProperty(s_pendingReports[i].name, s_pendingReports[i].value)) {
+            s_pendingReports[i].pending = false;
+        }
+        // else: still not connected, or this particular publish() failed --
+        // leave pending=true, try again next loop().
+    }
+}
+
+void AzureIoTClass::reportBoolProperty(const char *name, bool value) {
+    // Flat form -- {"name":value} -- no ac/av/ad wrapper, since that
+    // convention specifically means "acknowledging a particular desired
+    // version" (see ackBoolProperty() above), which doesn't apply to a
+    // device-initiated change nothing from the cloud asked for.
+
+    // Stage first (overwrite if this name is already pending), THEN attempt
+    // an immediate send -- so a failed/skipped send still leaves a correct
+    // record behind for retryPendingReports() to pick up later, instead of
+    // the value only existing transiently on the stack.
+    size_t slot = s_pendingReportCount; // index to use, found or newly allocated below
+    bool found = false;
+    for (size_t i = 0; i < s_pendingReportCount; i++) {
+        if (strcmp(s_pendingReports[i].name, name) == 0) {
+            slot = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        if (s_pendingReportCount >= 16) {
+            Serial.println("AzureIoT.reportBoolProperty: too many distinct property names pending (max 16) -- dropped.");
+            return;
+        }
+        s_pendingReportCount++;
+    }
+    s_pendingReports[slot].name = name;
+    s_pendingReports[slot].value = value;
+    s_pendingReports[slot].pending = true;
+
+    if (sendReportedProperty(name, value)) {
+        s_pendingReports[slot].pending = false;
+    }
+    // else: left pending -- retryPendingReports() (called from loop()) will
+    // catch it once MQTT reconnects, rather than the change being lost
+    // outright the way it would have been before this retry buffer existed.
 }
 
 void AzureIoTClass::setDpsGlobalHost(const char *host) {

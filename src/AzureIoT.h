@@ -197,6 +197,45 @@ public:
     void setProvisionRetryInitial(unsigned long ms);
     void setProvisionRetryMax(unsigned long ms);
 
+    // ---- Optional: hardware watchdog (recovers from an arbitrary hang) ----
+    //
+    // The self-healing described above (Wi-Fi reinit/reset, DPS backoff)
+    // only catches "stuck disconnected" -- if something else entirely
+    // freezes the sketch (a wedged library call, a bug in your own loop()
+    // code) with Wi-Fi otherwise fine, nothing currently recovers from
+    // that. enableWatchdog() closes that gap: once enabled, the platform's
+    // hardware watchdog resets the device if AzureIoT.loop() (or, during a
+    // Wi-Fi reconnect, connectWiFi()'s own internal wait) goes roughly 8
+    // seconds without being petted.
+    //
+    //   void setup() {
+    //     AzureIoT.begin(...);
+    //     AzureIoT.enableWatchdog(); // call AFTER begin(), not before -- see below
+    //   }
+    //
+    // THIS IS OPT-IN, NOT AUTOMATIC: enabling a watchdog is a real behavior
+    // change (an unattended device can now reboot mid-operation if
+    // something hangs), so it's a deliberate choice you make, not a
+    // default forced on every sketch using this library.
+    //
+    // CALL THIS AFTER begin(), NOT BEFORE: begin() itself blocks for as
+    // long as Wi-Fi connect + DPS provisioning takes -- routinely longer
+    // than 8 seconds on a slow network or with wrong credentials -- and
+    // nothing pets the watchdog during that specific internal sequence.
+    // Enabling it before begin() risks the very first boot watchdog-
+    // resetting itself mid-provisioning, before ever reaching your loop().
+    //
+    // Once enabled, AzureIoT.loop() -- and, importantly, connectWiFi()'s
+    // own internal reconnect wait, which can otherwise block for minutes
+    // -- pets it automatically. As long as your own code between two
+    // AzureIoT.loop() calls finishes in well under 8 seconds, you don't
+    // need to do anything else. If a single AzureIoT.loop() call itself
+    // ever blocks that long (an unusual network stall inside MQTT/DPS
+    // calls), the watchdog would fire mid-operation -- an accepted
+    // tradeoff given 8s is close to megaAVR-0's own ceiling for this
+    // peripheral, not a bug.
+    void enableWatchdog();
+
 private:
     bool ensureMqttConnected();
     void flush();
