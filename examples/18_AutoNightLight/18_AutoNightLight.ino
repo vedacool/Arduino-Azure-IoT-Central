@@ -20,7 +20,13 @@
 
 const int PIN_LIGHT = A4;
 const int PIN_LED = 7;
-const int DARK_THRESHOLD = 300; // raw ADC reading below this counts as "dark" -- adjust per environment
+// Two thresholds, not one -- a single threshold would flicker the LED
+// rapidly if the light level naturally hovers right at the boundary (ADC
+// noise, a cloud passing overhead at dusk). Turning on requires dropping
+// below the LOW threshold; turning back off requires rising above the
+// HIGH one -- the gap between them (the "dead band") is what stops flicker.
+const int DARK_THRESHOLD_LOW = 280;  // turns ON once below this
+const int DARK_THRESHOLD_HIGH = 320; // turns OFF once above this -- adjust both per environment
 
 bool ledState = false;
 
@@ -43,7 +49,9 @@ void loop() {
                       // AND delivering property updates to onLedState() above
 
     int lightLevel = analogRead(PIN_LIGHT);
-    bool shouldBeOn = lightLevel < DARK_THRESHOLD;
+    bool shouldBeOn = ledState; // stays the same unless a threshold is actually crossed
+    if (lightLevel < DARK_THRESHOLD_LOW) shouldBeOn = true;
+    else if (lightLevel > DARK_THRESHOLD_HIGH) shouldBeOn = false;
 
     if (shouldBeOn != ledState) {
         ledState = shouldBeOn;

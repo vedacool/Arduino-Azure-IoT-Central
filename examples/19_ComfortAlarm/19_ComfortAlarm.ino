@@ -31,8 +31,15 @@
 
 const int PIN_HUMIDITY = 2;
 const int PIN_BUZZER = 6;
-const float TEMP_ALARM_C = 30.0f;      // adjust to your idea of "uncomfortably hot"
-const float HUMIDITY_ALARM_PCT = 70.0f; // adjust to your idea of "uncomfortably humid"
+// Two thresholds each, not one -- a single threshold would flicker the
+// buzzer on/off if the reading naturally hovers right at the boundary,
+// which is a real risk here given DHT11's documented +/-2 degC / +/-5%
+// accuracy. Sounding requires crossing the HIGH threshold; going quiet
+// again requires dropping back below the LOW one.
+const float TEMP_ALARM_HIGH_C = 30.0f;
+const float TEMP_ALARM_LOW_C = 28.0f;          // adjust both to your idea of "uncomfortably hot"
+const float HUMIDITY_ALARM_HIGH_PCT = 70.0f;
+const float HUMIDITY_ALARM_LOW_PCT = 65.0f;    // adjust both to your idea of "uncomfortably humid"
 
 DHT dht(PIN_HUMIDITY, DHT11);
 bool buzzerOn = false;
@@ -67,7 +74,16 @@ void loop() {
         AzureIoT.publish("humidity", humidity);
         AzureIoT.publish("temperature", temperature);
 
-        bool shouldAlarm = !muted && (temperature > TEMP_ALARM_C || humidity > HUMIDITY_ALARM_PCT);
+        bool shouldAlarm = buzzerOn; // stays the same unless a threshold is actually crossed
+        if (!muted) {
+            if (temperature > TEMP_ALARM_HIGH_C || humidity > HUMIDITY_ALARM_HIGH_PCT) {
+                shouldAlarm = true;
+            } else if (temperature < TEMP_ALARM_LOW_C && humidity < HUMIDITY_ALARM_LOW_PCT) {
+                shouldAlarm = false;
+            }
+        } else {
+            shouldAlarm = false;
+        }
         if (shouldAlarm != buzzerOn) {
             buzzerOn = shouldAlarm;
             if (buzzerOn) {

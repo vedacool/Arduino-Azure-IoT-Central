@@ -23,7 +23,8 @@ const int CLAP_THRESHOLD = 100; // raw ADC deviation from quiet baseline -- adju
 const unsigned long CLAP_COOLDOWN_MS = 500; // ignore further spikes right after one, so an echo doesn't double-toggle
 
 bool ledState = false;
-unsigned long lastClapMillis = 0;
+bool aboveThreshold = false; // tracks whether we're currently past the threshold, for edge detection
+unsigned long lastToggleMillis = 0;
 
 void onLedState(bool on) {
     // Called when the CLOUD changes the property -- keep our local
@@ -51,10 +52,20 @@ void loop() {
     }
     sum >>= 5;
 
-    if (sum > CLAP_THRESHOLD && millis() - lastClapMillis > CLAP_COOLDOWN_MS) {
-        lastClapMillis = millis();
+    // Toggle on the RISING EDGE (quiet -> loud), gated by a cooldown --
+    // edge detection alone stops SUSTAINED loud noise from retoggling every
+    // loop() while it stays loud, but a real clap's decaying tail can still
+    // flicker back and forth across the threshold for a short while as it
+    // fades, which edge detection alone would count as several claps. The
+    // cooldown blocks re-arming for a bit after a toggle, covering that
+    // decay window without needing a fixed delay() in loop() (which would
+    // also slow down AzureIoT.loop()'s reconnect/send handling).
+    bool isAboveNow = sum > CLAP_THRESHOLD;
+    if (isAboveNow && !aboveThreshold && millis() - lastToggleMillis > CLAP_COOLDOWN_MS) {
+        lastToggleMillis = millis();
         ledState = !ledState;
         digitalWrite(PIN_LED, ledState ? HIGH : LOW);
         AzureIoT.reportBoolProperty("ledState", ledState); // tell the cloud WE changed it
     }
+    aboveThreshold = isAboveNow;
 }

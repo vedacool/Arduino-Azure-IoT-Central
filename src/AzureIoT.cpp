@@ -307,8 +307,21 @@ static bool extractJsonNumber(const char *json, const char *key, unsigned long *
 // -- snprintf's return value is still checked rather than assumed, in case a
 // sketch ever registers an unusually long property name.
 static void ackBoolProperty(const char *name, bool value, unsigned long version) {
-    char topic[48];
-    snprintf(topic, sizeof(topic), "$iothub/twin/PATCH/properties/reported/?$rid=%lu", ++s_twinRequestId);
+    // 64, not 48: "$iothub/twin/PATCH/properties/reported/?$rid=" is 45
+    // chars alone, and s_twinRequestId (unsigned long) can reach 10 digits
+    // -- 48 left only 2 digits of headroom, silently truncating (and
+    // therefore corrupting) $rid after just ~100 twin operations. Found via
+    // a deliberate repro across the full unsigned long range, not by
+    // re-reading the code -- snprintf bounds itself safely either way (no
+    // memory-safety bug), but a truncated $rid is still wrong protocol
+    // behavior, so the topic's own snprintf is now checked too, the same
+    // way the payload's already was.
+    char topic[64];
+    int topicLen = snprintf(topic, sizeof(topic), "$iothub/twin/PATCH/properties/reported/?$rid=%lu", ++s_twinRequestId);
+    if (topicLen <= 0 || (size_t)topicLen >= sizeof(topic)) {
+        Serial.println("AzureIoT: internal error building ack topic -- dropped.");
+        return;
+    }
 
     char payload[160];
     int n = snprintf(payload, sizeof(payload),
@@ -326,8 +339,12 @@ static void ackBoolProperty(const char *name, bool value, unsigned long version)
 // reconnect, rather than waiting for the next change. Response arrives
 // asynchronously in mqttMessageCallback() below (topic "$iothub/twin/res/#").
 static void requestFullTwin() {
-    char topic[32];
-    snprintf(topic, sizeof(topic), "$iothub/twin/GET/?$rid=%lu", ++s_twinRequestId);
+    char topic[40]; // see ackBoolProperty() for why this needs real headroom, not just the "typical" $rid length
+    int topicLen = snprintf(topic, sizeof(topic), "$iothub/twin/GET/?$rid=%lu", ++s_twinRequestId);
+    if (topicLen <= 0 || (size_t)topicLen >= sizeof(topic)) {
+        Serial.println("AzureIoT: internal error building twin GET topic -- dropped.");
+        return;
+    }
     s_mqttClient.publish(topic, (const uint8_t *)"", 0);
 }
 
@@ -583,8 +600,12 @@ void AzureIoTClass::reportBoolProperty(const char *name, bool value) {
     // convention specifically means "acknowledging a particular desired
     // version" (see ackBoolProperty() above), which doesn't apply to a
     // device-initiated change nothing from the cloud asked for.
-    char topic[48];
-    snprintf(topic, sizeof(topic), "$iothub/twin/PATCH/properties/reported/?$rid=%lu", ++s_twinRequestId);
+    char topic[64]; // see ackBoolProperty() for why this needs real headroom, not just the "typical" $rid length
+    int topicLen = snprintf(topic, sizeof(topic), "$iothub/twin/PATCH/properties/reported/?$rid=%lu", ++s_twinRequestId);
+    if (topicLen <= 0 || (size_t)topicLen >= sizeof(topic)) {
+        Serial.println("AzureIoT: internal error building report topic -- dropped.");
+        return;
+    }
 
     char payload[64];
     int n = snprintf(payload, sizeof(payload), "{\"%s\":%s}", name, value ? "true" : "false");
