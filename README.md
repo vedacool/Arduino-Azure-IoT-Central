@@ -2,7 +2,7 @@
 
 An Arduino library that connects a Uno WiFi Rev2 **or an ESP32 board** to Azure IoT Central: Wi-Fi, on-device Azure DPS provisioning, and MQTT telemetry — no PC-side tools, no editing library files, no config-table to learn.
 
-If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has six ready-to-run sketches, one per Grove sensor type, each a short, complete sketch you can read top to bottom — plus a connection-test sketch that needs no sensor at all.
+If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has ten ready-to-run sketches, one per Grove sensor type, each a short, complete sketch you can read top to bottom — plus a connection-test sketch that needs no sensor at all.
 
 ---
 
@@ -15,7 +15,7 @@ If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Cent
 **Alternative (manual):** clone or unzip this repo, then rename the resulting folder to `AzureIoT` and place it directly in your Arduino libraries folder:
 - Windows/Mac/Linux: `Documents/Arduino/libraries/AzureIoT`
 
-Either way, restart the Arduino IDE afterward. You should now see **File → Examples → AzureIoT** listing the six examples.
+Either way, restart the Arduino IDE afterward. You should now see **File → Examples → AzureIoT** listing the ten examples.
 
 ### 2. Board-specific setup
 
@@ -83,7 +83,7 @@ Check IoT Central → **Devices → your device → View** — you should see th
 
 ## The examples
 
-All six numbered examples use **Seeed Studio Grove-ecosystem sensor modules**, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
+All ten numbered examples use **Seeed Studio Grove-ecosystem sensor modules**, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
 
 **If you're on ESP32** (or any board without a Grove Base Shield): these examples assume you either have Grove-to-breadboard adapter cables for your specific board, or you're substituting an equivalent non-Grove sensor and wiring it directly — in which case update the pin constant near the top of each `.ino` (e.g. `const int PIN_TEMPERATURE = A0;`) to match your actual wiring, and check whether your specific ESP32 board's analog/digital pin numbering matches these constants at all (ESP32 boards vary in which GPIOs are broken out and analog-capable). `00_ConnectionTest` needs none of this — it's the one example with no sensor hardware requirement at all.
 
@@ -96,6 +96,10 @@ All six numbered examples use **Seeed Studio Grove-ecosystem sensor modules**, d
 | 4 | `04_TouchSensor` | Grove Touch | Digital pin 3 |
 | 5 | `05_TurbiditySensor` | Grove Turbidity | A3 |
 | 6 | `06_TemperatureHumiditySensor` | Grove Temp & Humidity (DHT11) | Digital pin 2 (needs one extra library — see the comment at the top of that sketch) |
+| 7 | `07_ButtonSensor` | Grove Button | Digital pin 4 |
+| 8 | `08_LightSensor` | Grove Light (photoresistor) | A4 |
+| 9 | `09_WaterSensor` | Grove Water | Digital pin 5 |
+| 10 | `10_MoistureSensor` | Grove Moisture | A5 |
 
 Every example is the same three-part shape:
 ```cpp
@@ -167,7 +171,7 @@ The reset uses `RSTCTRL.SWRR` on Uno WiFi Rev2 (megaAVR-0's dedicated software-r
 - **`publish()`/`loop()` staging and flush logic**: directly unit-tested -- overwrite semantics (publishing the same key twice before a send keeps only the latest value), correct clearing after a send, multiple keys combined into one message, and 50 rapid calls collapsing to one field per key (confirming the bounded send-rate design actually holds).
 - **`publishText()`'s JSON escaping**: unit-tested against 9 cases (plain text, embedded quotes, backslashes, newlines/tabs/carriage returns, control characters, empty strings, and buffer-boundary behavior with a deliberately undersized buffer) -- all correct, confirmed byte-for-byte against expected output. Also verified end-to-end that the final published payload matches what a JSON parser would expect (e.g. `device online, say "hi"` correctly becomes `{"status":"device online, say \"hi\""}`, not malformed JSON).
 - **Long-run escalation logic, both platforms**: the exponential-backoff arithmetic was isolated and checked in a standalone repro before being trusted inside the sketch. The full Wi-Fi-escalation and provisioning-backoff paths were then each tested end-to-end through the real, unmodified `AzureIoT.cpp` -- once against a WiFiNINA-signature mock, once against an ESP32-signature mock -- confirming identical behavior on both: the reinit fires once at the 1-minute mark, the reset fires once afterward at the 5-minute mark, and provisioning failures (with Wi-Fi otherwise fine) never trigger either one.
-- **All six example sketches** compiled cleanly against mocks of the real libraries for both platforms; the full library + one example were linked and run end-to-end on both, including a live check that the ESP32 path correctly wires the embedded certificate into `WiFiClientSecure::setCACert()`.
+- **All ten example sketches** compiled cleanly against mocks of the real libraries for both platforms; the full library + one example were linked and run end-to-end on both, including a live check that the ESP32 path correctly wires the embedded certificate into `WiFiClientSecure::setCACert()`. (The four newest examples -- Button, Light, Water, Moisture -- were syntax/type-checked against a lighter mock covering the Arduino core calls and the `AzureIoT` public API they actually use, which is everything a sketch calls; they weren't re-run through the original six's fuller WiFiNINA/PubSubClient-signature mock, since none of that surface is exercised by sketch code.)
 - **Not verified on either platform**: real hardware, real Azure credentials. **Uno WiFi Rev2 additionally**: the exact `atmega4809` compiler device pack isn't available in this sandbox (only through Arduino's own Board Manager). **ESP32 additionally**: Espressif's Xtensa/RISC-V toolchain isn't available in this sandbox either -- verification there used real, source-confirmed API signatures compiled and run on x86, not the actual ESP32 toolchain. Compile and test against one real device (of whichever board family you're using) before relying on this for a fleet of devices.
 
 ---
