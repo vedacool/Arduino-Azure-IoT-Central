@@ -82,6 +82,10 @@ Check IoT Central → **Devices → your device → View** — you should see th
 
 ## The exercises (replaces Module 4)
 
+All six numbered exercises use **Seeed Studio Grove-ecosystem sensor modules** — the same hardware the original workshop used, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
+
+**If you're on ESP32** (or any board without a Grove Base Shield): these exercises assume you either have Grove-to-breadboard adapter cables for your specific board, or you're substituting an equivalent non-Grove sensor and wiring it directly — in which case update the pin constant near the top of each `.ino` (e.g. `const int PIN_TEMPERATURE = A0;`) to match your actual wiring, and check whether your specific ESP32 board's analog/digital pin numbering matches these constants at all (ESP32 boards vary in which GPIOs are broken out and analog-capable). `00_ConnectionTest` needs none of this — it's the one exercise with no sensor hardware requirement at all.
+
 | # | Exercise | Sensor | Pin |
 |---|---|---|---|
 | — | `00_ConnectionTest` | **None** — just proves Wi-Fi/DPS/MQTT work, no wiring needed. Start here. | — |
