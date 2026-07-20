@@ -209,9 +209,13 @@ bool AzureIoTClass::ensureMqttConnected() {
     // blips) would mean needless repeated heap churn on a 6KB-RAM board for
     // no benefit, since the size never changes.
 
-    char username[220];
-    snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12",
+    char username[220]; // margin against s_iotHubHost (127 max) + s_deviceId (63 max) is real but tight (4 bytes) -- checked below rather than assumed, so a future change to either buffer's size can't silently reintroduce truncation
+    int usernameLen = snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12",
              s_iotHubHost, s_deviceId);
+    if (usernameLen <= 0 || (size_t)usernameLen >= sizeof(username)) {
+        Serial.println("AzureIoT: internal error building MQTT username -- aborting connect.");
+        return false;
+    }
 
     Serial.print("Connecting to MQTT as ");
     Serial.println(s_deviceId);
