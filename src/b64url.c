@@ -4,11 +4,11 @@
 static const char b64_table[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-size_t base64_enc_len(size_t in_len) {
+size_t azureiot_base64_enc_len(size_t in_len) {
     return ((in_len + 2) / 3) * 4;
 }
 
-size_t base64_encode(const uint8_t *in, size_t in_len, char *out) {
+size_t azureiot_base64_encode(const uint8_t *in, size_t in_len, char *out) {
     size_t i, o = 0;
     for (i = 0; i + 2 < in_len; i += 3) {
         uint32_t n = ((uint32_t)in[i] << 16) | ((uint32_t)in[i+1] << 8) | in[i+2];
@@ -43,14 +43,14 @@ static int8_t b64_val(char c) {
     return -1;
 }
 
-size_t base64_dec_len(const char *in, size_t in_len) {
+size_t azureiot_base64_dec_len(const char *in, size_t in_len) {
     size_t pad = 0;
     if (in_len >= 1 && in[in_len-1] == '=') pad++;
     if (in_len >= 2 && in[in_len-2] == '=') pad++;
     return (in_len / 4) * 3 - pad;
 }
 
-size_t base64_decode(const char *in, size_t in_len, uint8_t *out, size_t out_cap) {
+size_t azureiot_base64_decode(const char *in, size_t in_len, uint8_t *out, size_t out_cap) {
     size_t i, o = 0;
     uint32_t buf = 0;
     int bits = 0;
@@ -85,7 +85,7 @@ static char hex_digit(uint8_t v) {
     return (v < 10) ? ('0' + v) : ('A' + (v - 10));
 }
 
-size_t url_encode(const char *in, char *out, size_t out_cap) {
+size_t azureiot_url_encode(const char *in, char *out, size_t out_cap) {
     size_t o = 0;
     for (const char *p = in; *p; ++p) {
         unsigned char c = (unsigned char)*p;

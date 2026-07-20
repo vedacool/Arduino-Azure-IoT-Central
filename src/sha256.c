@@ -48,7 +48,7 @@ static void sha256_transform(SHA256_CTX *ctx, const uint8_t data[]) {
     ctx->state[4] += e; ctx->state[5] += f; ctx->state[6] += g; ctx->state[7] += h;
 }
 
-void sha256_init(SHA256_CTX *ctx) {
+void azureiot_sha256_init(SHA256_CTX *ctx) {
     ctx->datalen = 0;
     ctx->bitlen = 0;
     ctx->state[0] = 0x6a09e667; ctx->state[1] = 0xbb67ae85;
@@ -57,7 +57,7 @@ void sha256_init(SHA256_CTX *ctx) {
     ctx->state[6] = 0x1f83d9ab; ctx->state[7] = 0x5be0cd19;
 }
 
-void sha256_update(SHA256_CTX *ctx, const uint8_t data[], size_t len) {
+void azureiot_sha256_update(SHA256_CTX *ctx, const uint8_t data[], size_t len) {
     size_t i;
     for (i = 0; i < len; ++i) {
         ctx->data[ctx->datalen] = data[i];
@@ -70,7 +70,7 @@ void sha256_update(SHA256_CTX *ctx, const uint8_t data[], size_t len) {
     }
 }
 
-void sha256_final(SHA256_CTX *ctx, uint8_t hash[]) {
+void azureiot_sha256_final(SHA256_CTX *ctx, uint8_t hash[]) {
     uint32_t i = ctx->datalen;
 
     if (ctx->datalen < 56) {
@@ -103,7 +103,7 @@ void sha256_final(SHA256_CTX *ctx, uint8_t hash[]) {
 }
 
 /* HMAC-SHA256 per RFC 2104, block size 64 bytes as required by SHA-256. */
-void hmac_sha256(const uint8_t *key, size_t key_len,
+void azureiot_hmac_sha256(const uint8_t *key, size_t key_len,
                   const uint8_t *msg, size_t msg_len,
                   uint8_t out[SHA256_BLOCK_SIZE]) {
     uint8_t k_ipad[64], k_opad[64], tk[SHA256_BLOCK_SIZE];
@@ -112,9 +112,9 @@ void hmac_sha256(const uint8_t *key, size_t key_len,
     size_t i;
 
     if (key_len > 64) {
-        sha256_init(&ctx);
-        sha256_update(&ctx, key, key_len);
-        sha256_final(&ctx, tk);
+        azureiot_sha256_init(&ctx);
+        azureiot_sha256_update(&ctx, key, key_len);
+        azureiot_sha256_final(&ctx, tk);
         key = tk;
         key_len = SHA256_BLOCK_SIZE;
     }
@@ -126,13 +126,13 @@ void hmac_sha256(const uint8_t *key, size_t key_len,
         k_opad[i] ^= key[i];
     }
 
-    sha256_init(&ctx);
-    sha256_update(&ctx, k_ipad, 64);
-    sha256_update(&ctx, msg, msg_len);
-    sha256_final(&ctx, inner_hash);
+    azureiot_sha256_init(&ctx);
+    azureiot_sha256_update(&ctx, k_ipad, 64);
+    azureiot_sha256_update(&ctx, msg, msg_len);
+    azureiot_sha256_final(&ctx, inner_hash);
 
-    sha256_init(&ctx);
-    sha256_update(&ctx, k_opad, 64);
-    sha256_update(&ctx, inner_hash, SHA256_BLOCK_SIZE);
-    sha256_final(&ctx, out);
+    azureiot_sha256_init(&ctx);
+    azureiot_sha256_update(&ctx, k_opad, 64);
+    azureiot_sha256_update(&ctx, inner_hash, SHA256_BLOCK_SIZE);
+    azureiot_sha256_final(&ctx, out);
 }
