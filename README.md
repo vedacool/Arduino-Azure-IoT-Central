@@ -2,7 +2,7 @@
 
 An Arduino library that connects a Uno WiFi Rev2 **or an ESP32 board** to Azure IoT Central: Wi-Fi, on-device Azure DPS provisioning, and MQTT telemetry — no PC-side tools, no editing library files, no config-table to learn. Replaces the older `firedog1024/arduino-uno-wifi-iotc` + `Azure/dps-keygen` approach (the latter is archived and its connection-string feature stopped working in 2020).
 
-This also **replaces Module 4** of the workshop ("Mengintegrasi Sensor Groove Arduino ke Microsoft Azure"). The six example sketches under `examples/` are a 1:1 replacement for Module 4's six sensor sections, each a short, complete sketch you can read top to bottom. The examples were written for the Uno WiFi Rev2's Grove sensors, but the connectivity code underneath (`AzureIoT.begin()`/`.loop()`/`.publish()`) works identically on ESP32 -- just swap in whatever sensors your ESP32 board actually has wired up.
+This started as a fix for a specific university IoT workshop whose official device-connection instructions relied on that broken tool-chain — but the library itself is general-purpose: if you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below and ignore the workshop-specific framing. The six sketches under `examples/` also **replace Module 4** of that original workshop ("Mengintegrasi Sensor Groove Arduino ke Microsoft Azure") — a 1:1 replacement for its six sensor sections, each a short, complete sketch you can read top to bottom. Those examples were written for the Uno WiFi Rev2's Grove sensors, but the connectivity code underneath (`AzureIoT.begin()`/`.loop()`/`.publish()`) works identically on ESP32 — just swap in whatever sensors your board actually has wired up.
 
 ---
 
@@ -107,7 +107,7 @@ void loop() {
 
 ## Writing your own exercise / project
 
-This is the point of the redesign: **the algorithm is yours.** `AzureIoT.begin(...)` and `AzureIoT.loop()` are the only calls you need for connectivity — everything else in `loop()` (which sensors to read, what math to do, when to publish what) is ordinary Arduino code, exactly like Modules 2 and 4 already taught, just aimed at `AzureIoT.publish(key, value)` instead of `Serial.println(...)`.
+This is the point of the redesign: **the algorithm is yours.** `AzureIoT.begin(...)` and `AzureIoT.loop()` are the only calls you need for connectivity — everything else in `loop()` (which sensors to read, what math to do, when to publish what) is ordinary Arduino code, just aimed at `AzureIoT.publish(key, value)` instead of `Serial.println(...)`.
 
 A few things worth knowing:
 
