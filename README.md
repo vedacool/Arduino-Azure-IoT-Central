@@ -26,7 +26,7 @@ Either way, restart the Arduino IDE afterward. You should now see **File → Exa
 
 **If you're using an Arduino Uno WiFi Rev2:**
 - Install two dependencies: **Sketch → Include Library → Manage Libraries** → `WiFiNINA` and `PubSubClient` (v2.8+).
-- You'll need the one-time TLS certificate upload described in Step 4 below.
+- The TLS certificate step described in Step 4 below *might* not even be necessary — try `00_ConnectionTest` first (see Step 5) before doing anything with certificates.
 
 ### 3. Get your Azure IoT Central device credentials
 
@@ -35,13 +35,19 @@ In your IoT Central app: **Devices → your device → Connect**. You'll need:
 - **Device ID**
 - **Primary key** (or a computed device key, if you're using a group enrollment)
 
-### 4. Upload Azure's TLS certificate to your board (Uno WiFi Rev2 only — skip this on ESP32)
+### 4. Uno WiFi Rev2 only: TLS certificate — try without it first
 
-1. Arduino IDE → **Tools → WiFiNINA Firmware/Certificates Updater**
+**Skip this step for now.** Upload `00_ConnectionTest` (Step 5 below) as-is first. The WiFiNINA module ships with a set of built-in trusted root certificates, and Azure's current one (DigiCert Global Root G2) is common enough across the internet that many boards already trust it out of the box — in which case this step is unnecessary. You'll know immediately: if the Serial Monitor shows successful `Published:` messages, you're done, no certificate upload needed.
+
+**Only if that *doesn't* work** (Serial Monitor stuck at "Connecting to WiFi" forever, or DPS provisioning failing with no other obvious cause):
+
+1. Arduino IDE → **Tools → WiFiNINA Firmware/Certificates Updater** (or **Upload SSL Root Certificates** in IDE 2.x)
 2. Add domain → type `global.azure-devices-provisioning.net` → Upload
-3. (You'll add one more domain after Step 6 below — the sketch tells you which one.)
+3. (You may need to add one more domain after Step 6 below — the sketch tells you which one, if IoT Central assigns you a specific hub.)
 
-Skipping this is the single most common reason a fresh Uno WiFi Rev2 project fails to connect. ESP32 doesn't need this step at all — its root certificate is already embedded in the library.
+**If the upload itself fails** with a generic "Upload failed. Please try again." — this is a known Arduino IDE bug, not something wrong with your setup: the certificate upload tool needs exclusive access to the board's serial port, and it fails with exactly that unhelpful message if the **Serial Monitor or Serial Plotter is open** at the same time. Close it first, then retry the upload.
+
+ESP32 doesn't need any of this — its root certificate is already embedded in the library.
 
 ### 5. Open an exercise and set up its config
 
@@ -66,7 +72,7 @@ MQTT connected.
 Published: {"temperature":23.45}
 ```
 
-**Uno WiFi Rev2 only:** copy the **"Assigned hub"** hostname, go back to the Certificates Updater from Step 4, add that domain too, and re-upload. From then on it keeps working even if IoT Central ever reassigns you to a different hub — the sketch re-provisions on every boot. **ESP32 doesn't need this** — its embedded root certificate already covers any hub Azure assigns you.
+**Uno WiFi Rev2 only:** if you needed the certificate step above and MQTT still won't connect after that, copy the **"Assigned hub"** hostname from Serial Monitor, go to the Certificates Updater, add that domain too, and re-upload. From then on it keeps working even if IoT Central ever reassigns you to a different hub — the sketch re-provisions on every boot. **ESP32 doesn't need this** — its embedded root certificate already covers any hub Azure assigns you.
 
 Check IoT Central → **Devices → your device → View** — you should see the field updating every few seconds.
 
@@ -126,8 +132,9 @@ A few things worth knowing:
 | Symptom | Likely cause |
 |---|---|
 | Hangs at "Connecting to WiFi" with dots forever, then retries | Wrong `WIFI_SSID`/`WIFI_PASSWORD` in `config.h`, or board out of range |
-| "DPS provisioning FAILED" | Wrong `IOTC_ID_SCOPE`/`IOTC_DEVICE_ID`/`IOTC_DEVICE_KEY`, **or** (Uno WiFi Rev2 only) you haven't done Step 4 (TLS certificate) yet |
-| Provisioning succeeds but "MQTT connect failed, rc=..." | **Uno WiFi Rev2:** you haven't added the *assigned hub's* domain to the Certificates Updater yet (see end of Step 6). **ESP32:** this shouldn't happen since the root cert is embedded — if it does, double-check the board actually has internet access (captive portal, firewall) |
+| "DPS provisioning FAILED" | Wrong `IOTC_ID_SCOPE`/`IOTC_DEVICE_ID`/`IOTC_DEVICE_KEY`. On Uno WiFi Rev2 specifically, this can also mean the TLS certificate step (Step 4) is needed — but try without it first; many boards already trust Azure's certificate out of the box |
+| Provisioning succeeds but "MQTT connect failed, rc=..." | **Uno WiFi Rev2:** you may need the *assigned hub's* domain added to the Certificates Updater too (see end of Step 6). **ESP32:** this shouldn't happen since the root cert is embedded — if it does, double-check the board actually has internet access (captive portal, firewall) |
+| "Upload SSL Root Certificates" fails with "Upload failed. Please try again." | Known Arduino IDE bug, not your setup: the tool needs exclusive access to the board's serial port and fails with this exact generic message if the **Serial Monitor or Serial Plotter is open**. Close it, then retry the upload |
 | Nothing appears in IoT Central even though Serial shows "Published: ..." | Check the device's template/capability model matches your published keys — a raw JSON key needs a matching capability in IoT Central for the dashboard to render it |
 | "AzureIoT.publish: too many distinct keys staged" | You're publishing more than 16 differently-named keys from one sketch; combine some or raise the limit in `AzureIoT.cpp` |
 
