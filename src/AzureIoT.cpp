@@ -220,8 +220,9 @@ void AzureIoTClass::flush() {
     snprintf(topic, sizeof(topic), "devices/%s/messages/events/", s_deviceId);
 
     char payload[220];
+    const size_t cap = sizeof(payload);
     size_t pos = 0;
-    payload[pos++] = '{';
+    if (pos < cap - 1) payload[pos++] = '{';
     bool first = true;
     for (size_t i = 0; i < s_stagedCount; i++) {
         if (!s_staged[i].set) continue;
@@ -231,8 +232,16 @@ void AzureIoTClass::flush() {
         first = false;
         s_staged[i].set = false; // consumed
     }
-    payload[pos++] = '}';
-    payload[pos] = '\0';
+    // Bounds-checked, not unconditional -- appendField() only bounds itself
+    // against the capacity it's given; it doesn't know a closing '}' and a
+    // NUL still need to follow it. An unconditional write here could run
+    // past the buffer if staged keys were long enough to leave pos right at
+    // the edge after the last successful append -- found the same pattern's
+    // twin in publishText() via AddressSanitizer and checked here too,
+    // where it turned out to be equally real (confirmed with the same tool
+    // across a range of key lengths before this fix).
+    if (pos < cap - 1) payload[pos++] = '}';
+    payload[pos < cap ? pos : cap - 1] = '\0';
 
     if (s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)pos)) {
         Serial.print("Published: ");
@@ -258,17 +267,28 @@ void AzureIoTClass::publishText(const char *key, const char *value) {
     snprintf(topic, sizeof(topic), "devices/%s/messages/events/", s_deviceId);
 
     char payload[220];
+    const size_t cap = sizeof(payload);
     size_t pos = 0;
-    payload[pos++] = '{';
-    payload[pos++] = '"';
-    appendJsonEscaped(payload, sizeof(payload), &pos, key);
-    payload[pos++] = '"';
-    payload[pos++] = ':';
-    payload[pos++] = '"';
-    appendJsonEscaped(payload, sizeof(payload), &pos, value);
-    payload[pos++] = '"';
-    payload[pos++] = '}';
-    payload[pos] = '\0';
+
+    // Every write below is individually bounds-checked against cap.
+    // appendJsonEscaped() only bounds ITSELF against the capacity it's
+    // given -- it has no idea what still needs to be written after it
+    // returns, so the fixed characters around key/value (quotes, colon,
+    // braces) can't just be written unconditionally afterward. An earlier
+    // version did exactly that and could overflow this buffer if key+value
+    // were long enough to fill it first -- caught with AddressSanitizer,
+    // not by re-reading the code, so every write here is deliberately
+    // defensive even where it looks redundant.
+    if (pos < cap - 1) payload[pos++] = '{';
+    if (pos < cap - 1) payload[pos++] = '"';
+    appendJsonEscaped(payload, cap - 1, &pos, key);
+    if (pos < cap - 1) payload[pos++] = '"';
+    if (pos < cap - 1) payload[pos++] = ':';
+    if (pos < cap - 1) payload[pos++] = '"';
+    appendJsonEscaped(payload, cap - 1, &pos, value);
+    if (pos < cap - 1) payload[pos++] = '"';
+    if (pos < cap - 1) payload[pos++] = '}';
+    payload[pos < cap ? pos : cap - 1] = '\0';
 
     if (s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)pos)) {
         Serial.print("Published: ");
