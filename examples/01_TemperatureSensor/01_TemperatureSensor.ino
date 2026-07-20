@@ -1,4 +1,4 @@
-// Module 4, Exercise 1 -- Sensor Suhu (Temperature Sensor)
+// Exercise 1 -- Temperature Sensor
 //
 // Grove Temperature Sensor (thermistor) on analog pin A0, connected to
 // Azure IoT Central via the AzureIoT library.
@@ -21,7 +21,7 @@ void setup() {
 void loop() {
     AzureIoT.loop(); // always call this once per loop() -- handles reconnects + sending
 
-    // Same thermistor math as the original Module 2/4 tutorials.
+    // Standard Grove thermistor conversion math.
     int a = analogRead(PIN_TEMPERATURE);
     if (a > 0) { // avoid divide-by-zero if the sensor isn't plugged in
         const int B = 4275;

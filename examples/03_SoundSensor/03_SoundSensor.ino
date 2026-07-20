@@ -1,4 +1,4 @@
-// Module 4, Exercise 3 -- Sensor Bunyi (Sound Sensor)
+// Exercise 3 -- Sound Sensor
 //
 // Grove Sound Sensor on analog pin A2, connected to Azure IoT Central via
 // the AzureIoT library.
@@ -19,7 +19,7 @@ void setup() {
 void loop() {
     AzureIoT.loop(); // always call this once per loop() -- handles reconnects + sending
 
-    // Same 32-sample averaging as the original Module 2/4 tutorials.
+    // 32-sample averaging to smooth out sensor noise.
     long sum = 0;
     for (int i = 0; i < 32; i++) {
         sum += analogRead(PIN_SOUND);

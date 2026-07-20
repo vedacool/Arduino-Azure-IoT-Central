@@ -1,4 +1,4 @@
-// Module 4, Exercise 5 -- Sensor Kekeruhan (Turbidity Sensor)
+// Exercise 5 -- Turbidity Sensor
 //
 // Grove Turbidity Sensor on analog pin A3, connected to Azure IoT Central
 // via the AzureIoT library.
@@ -19,7 +19,7 @@ void setup() {
 void loop() {
     AzureIoT.loop(); // always call this once per loop() -- handles reconnects + sending
 
-    // Same math as the original Module 2/4 tutorials.
+    // Standard Grove turbidity sensor conversion math.
     int sensorValue = analogRead(PIN_TURBIDITY);
     float turbidity = sensorValue * (5.0f / 1024.0f);
 

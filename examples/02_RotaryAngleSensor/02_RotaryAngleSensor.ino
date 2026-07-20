@@ -1,4 +1,4 @@
-// Module 4, Exercise 2 -- Sensor Sudut Putaran (Rotary Angle Sensor)
+// Exercise 2 -- Rotary Angle Sensor
 //
 // Grove Rotary Angle Sensor on analog pin A1, connected to Azure IoT
 // Central via the AzureIoT library.
@@ -22,7 +22,7 @@ void setup() {
 void loop() {
     AzureIoT.loop(); // always call this once per loop() -- handles reconnects + sending
 
-    // Same math as the original Module 2/4 tutorials.
+    // Standard Grove rotary angle sensor conversion math.
     int sensorValue = analogRead(PIN_ROTARY_ANGLE);
     float voltage = (float)sensorValue * ADC_REF / 1023.0f;
     float rotaryAngle = (voltage * FULL_ANGLE) / GROVE_VCC;

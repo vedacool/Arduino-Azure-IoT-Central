@@ -1,13 +1,11 @@
-// Module 4, Exercise 6 -- Sensor Suhu dan Kelembapan (Temperature &
-// Humidity Sensor)
+// Exercise 6 -- Temperature & Humidity Sensor
 //
 // Grove Temperature & Humidity Sensor (DHT11) on digital pin 2, connected
 // to Azure IoT Central via the AzureIoT library.
 //
 // This one needs one extra library beyond AzureIoT and its own dependencies:
-// the Seeed "Grove Temperature And Humidity Sensor" library, added exactly
-// as in the original Module 2 Tutorial 9: Sketch > Include Library > Add
-// .ZIP Library, using the .zip from
+// the Seeed "Grove Temperature And Humidity Sensor" library. Install it via
+// Sketch > Include Library > Add .ZIP Library, using the .zip from
 // https://github.com/Seeed-Studio/Grove_Temperature_And_Humidity_Sensor
 //
 // Setup: edit config.h in this folder with your

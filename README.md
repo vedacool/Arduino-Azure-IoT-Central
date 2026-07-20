@@ -2,7 +2,7 @@
 
 An Arduino library that connects a Uno WiFi Rev2 **or an ESP32 board** to Azure IoT Central: Wi-Fi, on-device Azure DPS provisioning, and MQTT telemetry — no PC-side tools, no editing library files, no config-table to learn. Replaces the older `firedog1024/arduino-uno-wifi-iotc` + `Azure/dps-keygen` approach (the latter is archived and its connection-string feature stopped working in 2020).
 
-This started as a fix for a specific university IoT workshop whose official device-connection instructions relied on that broken tool-chain — but the library itself is general-purpose: if you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below and ignore the workshop-specific framing. The six sketches under `examples/` also **replace Module 4** of that original workshop ("Mengintegrasi Sensor Groove Arduino ke Microsoft Azure") — a 1:1 replacement for its six sensor sections, each a short, complete sketch you can read top to bottom. Those examples were written for the Uno WiFi Rev2's Grove sensors, but the connectivity code underneath (`AzureIoT.begin()`/`.loop()`/`.publish()`) works identically on ESP32 — just swap in whatever sensors your board actually has wired up.
+This started as a fix for a specific university IoT workshop whose official device-connection instructions relied on that broken tool-chain — but the library itself is general-purpose: if you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below and ignore the workshop-specific framing. The six sketches under `examples/` also **replace Module 4** of that original workshop ("Mengintegrasi Sensor Groove Arduino ke Microsoft Azure" — Bahasa Malaysia for "Integrating Grove Arduino Sensors into Microsoft Azure") — a 1:1 replacement for its six sensor sections, each a short, complete sketch you can read top to bottom. Those examples were written for the Uno WiFi Rev2's Grove sensors, but the connectivity code underneath (`AzureIoT.begin()`/`.loop()`/`.publish()`) works identically on ESP32 — just swap in whatever sensors your board actually has wired up.
 
 ---
 
@@ -33,7 +33,6 @@ Either way, restart the Arduino IDE afterward. You should now see **File → Exa
 In your IoT Central app: **Devices → your device → Connect**. You'll need:
 - **ID scope**
 - **Device ID**
-
 - **Primary key** (or a computed device key, if you're using a group enrollment)
 
 ### 4. Upload Azure's TLS certificate to your board (Uno WiFi Rev2 only — skip this on ESP32)
@@ -46,7 +45,7 @@ Skipping this is the single most common reason a fresh Uno WiFi Rev2 project fai
 
 ### 5. Open an exercise and set up its config
 
-**File → Examples → AzureIoT → 01_Sensor_Suhu_TemperatureSensor** (or whichever exercise you're doing). It comes with a `config.h` already in its folder — just open it and edit the values directly:
+**File → Examples → AzureIoT → 01_TemperatureSensor** (or whichever exercise you're doing). It comes with a `config.h` already in its folder — just open it and edit the values directly:
 - `WIFI_SSID` / `WIFI_PASSWORD`
 - `IOTC_ID_SCOPE` / `IOTC_DEVICE_ID` / `IOTC_DEVICE_KEY` (from Step 3)
 
@@ -79,12 +78,12 @@ Check IoT Central → **Devices → your device → View** — you should see th
 
 | # | Exercise | Sensor | Pin |
 |---|---|---|---|
-| 1 | `01_Sensor_Suhu_TemperatureSensor` | Grove Temperature (thermistor) | A0 |
-| 2 | `02_Sensor_Sudut_Putaran_RotaryAngleSensor` | Grove Rotary Angle | A1 |
-| 3 | `03_Sensor_Bunyi_SoundSensor` | Grove Sound | A2 |
-| 4 | `04_Sensor_Sentuhan_TouchSensor` | Grove Touch | Digital pin 3 |
-| 5 | `05_Sensor_Kekeruhan_TurbiditySensor` | Grove Turbidity | A3 |
-| 6 | `06_Sensor_Suhu_Kelembapan_HumiditySensor` | Grove Temp & Humidity (DHT11) | Digital pin 2 (needs one extra library — see the comment at the top of that sketch) |
+| 1 | `01_TemperatureSensor` | Grove Temperature (thermistor) | A0 |
+| 2 | `02_RotaryAngleSensor` | Grove Rotary Angle | A1 |
+| 3 | `03_SoundSensor` | Grove Sound | A2 |
+| 4 | `04_TouchSensor` | Grove Touch | Digital pin 3 |
+| 5 | `05_TurbiditySensor` | Grove Turbidity | A3 |
+| 6 | `06_TemperatureHumiditySensor` | Grove Temp & Humidity (DHT11) | Digital pin 2 (needs one extra library — see the comment at the top of that sketch) |
 
 Every exercise is the same three-part shape:
 ```cpp

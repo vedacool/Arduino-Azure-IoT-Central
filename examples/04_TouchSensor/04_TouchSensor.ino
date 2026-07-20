@@ -1,4 +1,4 @@
-// Module 4, Exercise 4 -- Sensor Sentuhan (Touch Sensor)
+// Exercise 4 -- Touch Sensor
 //
 // Grove Touch Sensor on digital pin 3, connected to Azure IoT Central via
 // the AzureIoT library.
