@@ -182,6 +182,34 @@ static bool appendField(char *buf, size_t bufCap, size_t *pos, bool first,
     return true;
 }
 
+// Appends `s`, JSON-escaped, into buf starting at *pos -- handles the
+// characters JSON actually requires escaping (", \, and control
+// characters). Good enough for ordinary human-written status/test text;
+// not a full Unicode-aware JSON encoder.
+static void appendJsonEscaped(char *buf, size_t bufCap, size_t *pos, const char *s) {
+    while (*s != '\0' && *pos + 1 < bufCap) {
+        unsigned char c = (unsigned char)*s;
+        if (c == '"' || c == '\\') {
+            if (*pos + 2 >= bufCap) break;
+            buf[(*pos)++] = '\\';
+            buf[(*pos)++] = (char)c;
+        } else if (c == '\n' && *pos + 2 < bufCap) {
+            buf[(*pos)++] = '\\'; buf[(*pos)++] = 'n';
+        } else if (c == '\r' && *pos + 2 < bufCap) {
+            buf[(*pos)++] = '\\'; buf[(*pos)++] = 'r';
+        } else if (c == '\t' && *pos + 2 < bufCap) {
+            buf[(*pos)++] = '\\'; buf[(*pos)++] = 't';
+        } else if (c < 0x20) {
+            if (*pos + 6 >= bufCap) break;
+            int n = snprintf(buf + *pos, bufCap - *pos, "\\u%04x", c);
+            if (n > 0) *pos += (size_t)n;
+        } else {
+            buf[(*pos)++] = (char)c;
+        }
+        s++;
+    }
+}
+
 void AzureIoTClass::flush() {
     s_lastFlushMillis = millis();
     if (s_stagedCount == 0) return; // nothing staged since the last flush
@@ -203,6 +231,42 @@ void AzureIoTClass::flush() {
         first = false;
         s_staged[i].set = false; // consumed
     }
+    payload[pos++] = '}';
+    payload[pos] = '\0';
+
+    if (s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)pos)) {
+        Serial.print("Published: ");
+        Serial.println(payload);
+    } else {
+        Serial.println("Publish failed.");
+    }
+}
+
+void AzureIoTClass::publishText(const char *key, const char *value) {
+    // Sends immediately -- does NOT go through the staged/batched path that
+    // publish(key, float) uses. Deliberately kept separate: adding string
+    // storage to the shared staging array would cost real RAM (a fixed-size
+    // buffer per slot, whether or not any sketch ever calls this) on every
+    // sketch using this library, including the many that never send text at
+    // all. This is meant for occasional status messages and connectivity
+    // testing, not high-frequency telemetry -- if you're calling this
+    // rapidly in a tight loop, you'll bypass the send-rate bounding that
+    // publish()/loop() give you for free.
+    if (!ensureMqttConnected()) return;
+
+    char topic[96];
+    snprintf(topic, sizeof(topic), "devices/%s/messages/events/", s_deviceId);
+
+    char payload[220];
+    size_t pos = 0;
+    payload[pos++] = '{';
+    payload[pos++] = '"';
+    appendJsonEscaped(payload, sizeof(payload), &pos, key);
+    payload[pos++] = '"';
+    payload[pos++] = ':';
+    payload[pos++] = '"';
+    appendJsonEscaped(payload, sizeof(payload), &pos, value);
+    payload[pos++] = '"';
     payload[pos++] = '}';
     payload[pos] = '\0';
 

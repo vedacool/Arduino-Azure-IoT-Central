@@ -45,7 +45,7 @@ Skipping this is the single most common reason a fresh Uno WiFi Rev2 project fai
 
 ### 5. Open an exercise and set up its config
 
-**File → Examples → AzureIoT → 01_TemperatureSensor** (or whichever exercise you're doing). It comes with a `config.h` already in its folder — just open it and edit the values directly:
+**File → Examples → AzureIoT → 00_ConnectionTest** first — it needs no sensor wiring at all, just your Wi-Fi + Azure credentials, and confirms the whole connection chain works before you touch any of the numbered sensor exercises. Each example ships with a `config.h` already in its folder — just open it and edit the values directly:
 - `WIFI_SSID` / `WIFI_PASSWORD`
 - `IOTC_ID_SCOPE` / `IOTC_DEVICE_ID` / `IOTC_DEVICE_KEY` (from Step 3)
 
@@ -78,6 +78,7 @@ Check IoT Central → **Devices → your device → View** — you should see th
 
 | # | Exercise | Sensor | Pin |
 |---|---|---|---|
+| — | `00_ConnectionTest` | **None** — just proves Wi-Fi/DPS/MQTT work, no wiring needed. Start here. | — |
 | 1 | `01_TemperatureSensor` | Grove Temperature (thermistor) | A0 |
 | 2 | `02_RotaryAngleSensor` | Grove Rotary Angle | A1 |
 | 3 | `03_SoundSensor` | Grove Sound | A2 |
@@ -116,6 +117,7 @@ A few things worth knowing:
 - **Need an immediate send** instead of waiting for the timer (e.g. reacting to a button press)? Call `AzureIoT.sendNow()`.
 - **`publish()`'s key must be a string literal** (`"temperature"`, not something built at runtime) — the pointer is kept, not copied.
 - Publishing multiple values before a send combines them into one message: `{"temperature":24.00,"humidity":55.00}` — see Exercise 6, which reads both from one DHT11.
+- **Want to send text instead of a number?** `AzureIoT.publishText(key, value)` sends a string value immediately (JSON-escaped for you) — unlike `publish()`, it doesn't stage/batch, so it's meant for occasional status messages and connection testing (see `00_ConnectionTest`), not high-frequency telemetry.
 
 ---
 
@@ -151,6 +153,7 @@ The reset uses `RSTCTRL.SWRR` on Uno WiFi Rev2 (megaAVR-0's dedicated software-r
 - **API usage, both platforms**: every WiFiNINA/PubSubClient call and every ESP32 WiFi/WiFiClientSecure/Esp.h call checked against each library's actual current source (arduino-libraries/WiFiNINA and espressif/arduino-esp32, respectively) before being used.
 - **Azure root CA certificate (ESP32 only)**: copied verbatim from Microsoft's official Azure IoT C SDK (`Azure/azure-iot-sdk-c`, `certs/certs.c`), not reconstructed by hand. Independently verified with `openssl x509`: both embedded certificates parse as valid, correctly self-signed root CAs, and the DigiCert Global Root G2 certificate's SHA-1 fingerprint (`DF:3C:24:F9:...`) matches an independently-sourced reference.
 - **`publish()`/`loop()` staging and flush logic**: directly unit-tested -- overwrite semantics (publishing the same key twice before a send keeps only the latest value), correct clearing after a send, multiple keys combined into one message, and 50 rapid calls collapsing to one field per key (confirming the bounded send-rate design actually holds).
+- **`publishText()`'s JSON escaping**: unit-tested against 9 cases (plain text, embedded quotes, backslashes, newlines/tabs/carriage returns, control characters, empty strings, and buffer-boundary behavior with a deliberately undersized buffer) -- all correct, confirmed byte-for-byte against expected output. Also verified end-to-end that the final published payload matches what a JSON parser would expect (e.g. `device online, say "hi"` correctly becomes `{"status":"device online, say \"hi\""}`, not malformed JSON).
 - **Long-run escalation logic, both platforms**: the exponential-backoff arithmetic was isolated and checked in a standalone repro before being trusted inside the sketch. The full Wi-Fi-escalation and provisioning-backoff paths were then each tested end-to-end through the real, unmodified `AzureIoT.cpp` -- once against a WiFiNINA-signature mock, once against an ESP32-signature mock -- confirming identical behavior on both: the reinit fires once at the 1-minute mark, the reset fires once afterward at the 5-minute mark, and provisioning failures (with Wi-Fi otherwise fine) never trigger either one.
 - **All six example sketches** compiled cleanly against mocks of the real libraries for both platforms; the full library + one example were linked and run end-to-end on both, including a live check that the ESP32 path correctly wires the embedded certificate into `WiFiClientSecure::setCACert()`.
 - **Not verified on either platform**: real hardware, real Azure credentials. **Uno WiFi Rev2 additionally**: the exact `atmega4809` compiler device pack isn't available in this sandbox (only through Arduino's own Board Manager). **ESP32 additionally**: Espressif's Xtensa/RISC-V toolchain isn't available in this sandbox either -- verification there used real, source-confirmed API signatures compiled and run on x86, not the actual ESP32 toolchain. Compile and test against one real device (of whichever board family you're using) before relying on this for a group of students.

@@ -103,6 +103,16 @@ public:
     // waiting for the automatic timer. Resets the timer afterwards.
     void sendNow();
 
+    // Sends a single string key/value pair as its own message, IMMEDIATELY
+    // -- unlike publish(key, float), this does not stage/batch/wait for the
+    // timer. Meant for occasional status messages and connection testing
+    // (e.g. "AzureIoT.publishText("status", "online");" from a sketch with
+    // no sensors wired up yet, just to confirm Wi-Fi/DPS/MQTT all work) --
+    // not for frequent telemetry, since it bypasses the send-rate bounding
+    // that publish()/loop() give you for free. Handles JSON-escaping the
+    // text for you.
+    void publishText(const char *key, const char *value);
+
     // ---- Optional tuning, call before begin() to override a default ----
 
     // DPS endpoint (default: the global Azure IoT Central endpoint). Only
