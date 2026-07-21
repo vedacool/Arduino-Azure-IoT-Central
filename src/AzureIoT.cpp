@@ -249,8 +249,15 @@ bool AzureIoTClass::ensureMqttConnected() {
             // Only pay for the subscribe + twin GET round-trip if the sketch
             // actually registered a property -- sketches that only publish()
             // telemetry never touch this at all.
-            s_mqttClient.subscribe("$iothub/twin/PATCH/properties/desired/#");
-            s_mqttClient.subscribe("$iothub/twin/res/#");
+            bool sub1 = s_mqttClient.subscribe("$iothub/twin/PATCH/properties/desired/#");
+            bool sub2 = s_mqttClient.subscribe("$iothub/twin/res/#");
+            if (!sub1 || !sub2) {
+                Serial.print("AzureIoT: WARNING -- twin topic subscribe failed (desired=");
+                Serial.print(sub1 ? "ok" : "FAILED");
+                Serial.print(", res=");
+                Serial.print(sub2 ? "ok" : "FAILED");
+                Serial.println("). Writable properties will not work until this succeeds -- check PubSubClient's MQTT_MAX_PACKET_SIZE / subscription limits.");
+            }
             requestFullTwin();
         }
         return true;
@@ -398,7 +405,11 @@ static void ackBoolProperty(const char *name, bool value, unsigned long version)
         Serial.println("AzureIoT: property name too long to ack -- dropped.");
         return;
     }
-    s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)n);
+    bool ok = s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)n);
+    Serial.print("AzureIoT: sent ack for '");
+    Serial.print(name);
+    Serial.print("' -- ");
+    Serial.println(ok ? "publish() OK" : "publish() FAILED");
 }
 
 // Requests the full current twin once per connection, so a dashboard toggle
@@ -412,7 +423,10 @@ static void requestFullTwin() {
         Serial.println("AzureIoT: internal error building twin GET topic -- dropped.");
         return;
     }
-    s_mqttClient.publish(topic, (const uint8_t *)"", 0);
+    bool ok = s_mqttClient.publish(topic, (const uint8_t *)"", 0);
+    Serial.print("AzureIoT: requested full twin (");
+    Serial.print(ok ? "sent" : "FAILED TO SEND");
+    Serial.println(") -- watching for a response on $iothub/twin/res/#.");
 }
 
 // PubSubClient's message callback. Handles two message shapes:
@@ -435,26 +449,51 @@ static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int leng
     memcpy(body, payload, length);
     body[length] = '\0';
 
+    Serial.print("AzureIoT: MQTT message on '");
+    Serial.print(topic);
+    Serial.print("' (");
+    Serial.print(length);
+    Serial.print(" bytes): ");
+    Serial.println(body);
+
     bool isTwinRes = strncmp(topic, "$iothub/twin/res/", 17) == 0;
     bool isDesiredPatch = strncmp(topic, "$iothub/twin/PATCH/properties/desired", 38) == 0;
-    if (!isTwinRes && !isDesiredPatch) return;
+    if (!isTwinRes && !isDesiredPatch) {
+        Serial.println("AzureIoT: (ignored -- not a twin-related topic this library handles)");
+        return;
+    }
 
     const char *searchIn = body;
     if (isTwinRes) {
         const char *desired = strstr(body, "\"desired\"");
-        if (!desired) return; // an ack for our own reported-property push, not a GET response -- nothing to do
+        if (!desired) {
+            Serial.println("AzureIoT: (twin/res message has no 'desired' section -- likely just the ack for our own reported-property push, ignoring)");
+            return;
+        }
         searchIn = desired;
     }
 
     unsigned long version = 0;
     extractJsonNumber(searchIn, "$version", &version);
 
+    bool matchedAny = false;
     for (size_t i = 0; i < s_boolPropCount; i++) {
         bool value;
         if (extractJsonBool(searchIn, s_boolProps[i].name, &value)) {
+            matchedAny = true;
+            Serial.print("AzureIoT: matched registered property '");
+            Serial.print(s_boolProps[i].name);
+            Serial.print("' = ");
+            Serial.print(value ? "true" : "false");
+            Serial.print(", version=");
+            Serial.print(version);
+            Serial.println(" -- invoking callback and sending ack.");
             s_boolProps[i].callback(value);
             ackBoolProperty(s_boolProps[i].name, value, version);
         }
+    }
+    if (!matchedAny) {
+        Serial.println("AzureIoT: (no registered property name found in this message)");
     }
 }
 
