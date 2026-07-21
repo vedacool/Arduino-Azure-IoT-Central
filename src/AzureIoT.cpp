@@ -457,7 +457,7 @@ static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int leng
     Serial.println(body);
 
     bool isTwinRes = strncmp(topic, "$iothub/twin/res/", 17) == 0;
-    bool isDesiredPatch = strncmp(topic, "$iothub/twin/PATCH/properties/desired", 38) == 0;
+    bool isDesiredPatch = strncmp(topic, "$iothub/twin/PATCH/properties/desired", 37) == 0;
     if (!isTwinRes && !isDesiredPatch) {
         Serial.println("AzureIoT: (ignored -- not a twin-related topic this library handles)");
         return;
