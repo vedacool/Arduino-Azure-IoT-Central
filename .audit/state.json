@@ -1,5 +1,5 @@
 {
-  "lastAuditCommit": "59807b3",
+  "lastAuditCommit": "3e4cf48",
   "lastFullAuditCommit": "59807b3",
   "verifiedGood": [
     "src/sha256.c + src/b64url.c + src/sas_token.c -- crypto core: RFC/NIST vectors, ASan/UBSan clean, byte-identical to independent Python cross-check",
@@ -26,7 +26,8 @@
     "ensureMqttConnected()'s username buffer had only 4 bytes of real margin against the same worst-case field lengths as resourceUri -- not actually broken today, but fragile and the last snprintf without a truncation check. Fixed: check added for consistency/future-proofing.",
     "Telemetry topic missing content-type/content-encoding declaration -- Azure IoT Hub accepted the message (so 'last data received' updated), but IoT Central couldn't reliably parse/display it. Found via a real user's hardware testing. Fixed: $.ct=application%2Fjson&$.ce=utf-8 appended to the topic.",
     "onBoolProperty()/reportBoolProperty() never declared the device's model ID during DPS registration or MQTT connect -- first real hardware test of writable properties showed the dashboard stuck 'pending', LED never responding. Per Microsoft's own IoT Plug and Play conventions, this is required for writable-property delivery (though not for plain telemetry). Fixed: optional modelId parameter threaded through begin() to both the DPS payload and the MQTT username. NOT YET CONFIRMED on hardware as resolving the 'stuck pending' symptom specifically -- implemented and verified correct against the documented spec.",
-    "azureiot_url_encode()'s call site in the new model-id code had no truncation check, unlike every other buffer operation in the file -- safe today (real margin confirmed via adversarial worst-case test) but inconsistent. Fixed: check added for consistency."
+    "azureiot_url_encode()'s call site in the new model-id code had no truncation check, unlike every other buffer operation in the file -- safe today (real margin confirmed via adversarial worst-case test) but inconsistent. Fixed: check added for consistency.",
+    "CRITICAL: mqttMessageCallback()'s isDesiredPatch strncmp used length 38 against a 37-character string literal, including the literal's own NUL terminator in the comparison -- meant live desired-property PATCH notifications could NEVER match, for any real topic, ever (confirmed via real hardware: 'reset picks up pending changes, but LED never reacts without a reset'). The twin-GET-on-connect path used a separate, correctly-sized check and was unaffected, which is why it looked like it was working. Fixed: 38 -> 37. Root cause of why this slipped through: the existing property-parsing test only tested JSON parsing, never the topic-matching/routing logic -- added test_topic_matching.cpp (not committed, same reasons as the retry-buffer test) using the real captured topic string, verified it fails against the pre-fix code."
   ]
 }
 
