@@ -42,11 +42,10 @@ In your IoT Central app: **Devices → your device → Connect**. You'll need:
 
 **Only if that *doesn't* work** (Serial Monitor stuck at "Connecting to WiFi" forever, or DPS provisioning failing with no other obvious cause):
 
-1. Arduino IDE → **Tools → WiFiNINA Firmware/Certificates Updater** (or **Upload SSL Root Certificates** in IDE 2.x)
-2. Add domain → type `global.azure-devices-provisioning.net` → Upload
-3. (You may need to add one more domain after Step 6 below — the sketch tells you which one, if IoT Central assigns you a specific hub.)
-
-**If the upload itself fails** with a generic "Upload failed. Please try again." — this is a known Arduino IDE bug, not something wrong with your setup: the certificate upload tool needs exclusive access to the board's serial port, and it fails with exactly that unhelpful message if the **Serial Monitor or Serial Plotter is open** at the same time. Close it first, then retry the upload.
+1. **Close every Serial Monitor and Serial Plotter window first — all of them, including any other Arduino IDE window you might have open.** This isn't optional: the certificate uploader needs exclusive access to the board's serial port, and it silently fails with a generic "Upload failed. Please try again." if *any* serial connection to the board is still open anywhere. This is a known Arduino IDE bug, not something wrong with your setup — but it fails every single time if you skip this, so do it first rather than treating it as a fallback if the upload fails.
+2. Arduino IDE → **Tools → WiFiNINA Firmware/Certificates Updater** (or **Upload SSL Root Certificates** in IDE 2.x)
+3. Click **Add New**, type the domain **with its port**: `global.azure-devices-provisioning.net:443` (the bare domain without `:443` may not work — always include the port) → check its box → select your board → Upload. Wait for "Certificates uploaded" before closing the window.
+4. (You may need to add one more domain after Step 6 below — the sketch tells you which one, if IoT Central assigns you a specific hub. Same `:443` format.)
 
 ESP32 doesn't need any of this — its root certificate is already embedded in the library.
 
