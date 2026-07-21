@@ -175,8 +175,10 @@ public:
     // set server-side (even if that happened while the device was off).
     // After your callback returns, the library automatically reports back a
     // full IoT Plug-and-Play-style acknowledgment (value/status/version), so
-    // the dashboard shows the toggle as "synced" rather than stuck
-    // "pending" -- you don't need to do anything for that part.
+    // the dashboard shows the toggle as "Accepted" rather than stuck
+    // "Pending" -- you don't need to do anything for that part. (These are
+    // the real IoT Central UI's own words, confirmed on real hardware --
+    // not "synced", which some other documentation on the web uses.)
     //
     // Fixed-size registration table (max 16, same cap as publish()'s staged
     // keys, for the same reason: this library never heap-allocates, so an

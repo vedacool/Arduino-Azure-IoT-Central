@@ -375,7 +375,7 @@ static bool extractJsonNumber(const char *json, const char *key, unsigned long *
 }
 
 // Reports a full IoT Plug-and-Play-style acknowledgment for one property, so
-// IoT Central's dashboard shows "synced" rather than stuck "pending". `name`
+// IoT Central's dashboard shows "Accepted" rather than stuck "Pending". `name`
 // is one of the string literals passed to onBoolProperty() (short by
 // construction, like publish()'s keys), so a fixed-size buffer here is safe
 // -- snprintf's return value is still checked rather than assumed, in case a
