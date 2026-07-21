@@ -1,6 +1,12 @@
 {
-  "lastAuditCommit": "3e4cf48",
-  "lastFullAuditCommit": "59807b3",
+  "lastAuditCommit": "43a4ff5",
+  "lastFullAuditCommit": "43a4ff5",
+  "releaseAudit": {
+    "date": "2026-07-21",
+    "verdict": "GO for release",
+    "scope": "Full clean-room audit: all mocks rebuilt from scratch, every source file recompiled fresh, all 21 examples recompiled fresh, README table cross-checked against disk file-by-file, full git history re-scanned for secrets, all config.h files re-verified placeholder-only, LICENSE/library.properties checked, no stray/backup files, no leftover TODO/debug markers.",
+    "foundThisPass": "Docs said the IoT Central dashboard shows 'synced' after an ack -- real screenshots from this session's hardware testing show it actually says 'Pending' -> 'Accepted'. Fixed in README.md, AzureIoT.h, and AzureIoT.cpp to match the real UI wording exactly."
+  },
   "verifiedGood": [
     "src/sha256.c + src/b64url.c + src/sas_token.c -- crypto core: RFC/NIST vectors, ASan/UBSan clean, byte-identical to independent Python cross-check",
     "src/AzureIoT.cpp flush()/publishText() payload buffer construction -- adversarial long-key test confirms no overflow",
