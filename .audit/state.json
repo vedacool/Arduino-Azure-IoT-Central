@@ -1,6 +1,6 @@
 {
-  "lastAuditCommit": "0cecdcf",
-  "lastFullAuditCommit": "0cecdcf",
+  "lastAuditCommit": "59807b3",
+  "lastFullAuditCommit": "59807b3",
   "verifiedGood": [
     "src/sha256.c + src/b64url.c + src/sas_token.c -- crypto core: RFC/NIST vectors, ASan/UBSan clean, byte-identical to independent Python cross-check",
     "src/AzureIoT.cpp flush()/publishText() payload buffer construction -- adversarial long-key test confirms no overflow",
@@ -13,7 +13,8 @@
     "src/platform.h platformWatchdogEnable/Pet -- register/API usage cross-checked against 3+ independent sources per platform (AVR Freaks, megaTinyCore/DxCore reference docs, arduino-esp32 3.x migration notes); syntax-checked against stubbed real macro/struct shapes",
     "src/AzureIoT.cpp reportBoolProperty() retry buffer -- functionally tested via single-TU inclusion of the real .cpp, 6 scenarios under ASan/UBSan",
     "src/AzureIoT.cpp twin $version extraction -- verified against 6+ authoritative real Azure twin JSON examples (Microsoft Q&A, Azure IoT SDK for Java docs, Azure Samples); confirmed no collision with $lastUpdatedVersion in $metadata blocks",
-    "Full-codebase re-audit (library + dps_client.cpp + all 21 examples + git history) -- clean except the one buffer-margin bug listed below"
+    "Full-codebase re-audit (library + dps_client.cpp + all 21 examples + git history) -- clean except the one buffer-margin bug listed below",
+    "Model-id feature (content-type fix + writable-property model-id declaration) -- fully diffed against last audit baseline, adversarial worst-case test (127-char all-colon model ID) confirms no overflow under ASan/UBSan, all 6 example config.h/.ino changes checked for consistency"
   ],
   "bugsFoundAndFixed": [
     "ackBoolProperty()/reportBoolProperty()/requestFullTwin() topic buffers undersized for unsigned long's full range -- silently truncated $rid after request-id 100 (reproduced directly, not just reasoned about). Fixed: proper sizing + truncation checks on all three.",
@@ -22,8 +23,12 @@
     "19_ComfortAlarm (pre-audit, caught during design not a later find) originally overloaded 'buzzerOn' as both a writable mute-control and telemetry -- same name, two meanings. Split into 'muted' property + 'buzzerOn' telemetry.",
     "refreshSasTokenIfNeeded()'s resourceUri buffer undersized for the true worst-case hub-hostname + device-ID length (200 needed, 192 available) -- found via -Wformat-truncation=2, not a routine build flag. Fixed: real margin + truncation check.",
     "Design flaw caught BEFORE shipping (not a bug in committed code): a naive 'pet watchdog once per loop()' design would have conflicted with connectWiFi()'s multi-minute Wi-Fi-reconnect retry tiers. Fixed in design: pet inside that retry loop specifically, not just at the top of loop().",
-    "ensureMqttConnected()'s username buffer had only 4 bytes of real margin against the same worst-case field lengths as resourceUri -- not actually broken today, but fragile and the last snprintf without a truncation check. Fixed: check added for consistency/future-proofing."
+    "ensureMqttConnected()'s username buffer had only 4 bytes of real margin against the same worst-case field lengths as resourceUri -- not actually broken today, but fragile and the last snprintf without a truncation check. Fixed: check added for consistency/future-proofing.",
+    "Telemetry topic missing content-type/content-encoding declaration -- Azure IoT Hub accepted the message (so 'last data received' updated), but IoT Central couldn't reliably parse/display it. Found via a real user's hardware testing. Fixed: $.ct=application%2Fjson&$.ce=utf-8 appended to the topic.",
+    "onBoolProperty()/reportBoolProperty() never declared the device's model ID during DPS registration or MQTT connect -- first real hardware test of writable properties showed the dashboard stuck 'pending', LED never responding. Per Microsoft's own IoT Plug and Play conventions, this is required for writable-property delivery (though not for plain telemetry). Fixed: optional modelId parameter threaded through begin() to both the DPS payload and the MQTT username. NOT YET CONFIRMED on hardware as resolving the 'stuck pending' symptom specifically -- implemented and verified correct against the documented spec.",
+    "azureiot_url_encode()'s call site in the new model-id code had no truncation check, unlike every other buffer operation in the file -- safe today (real margin confirmed via adversarial worst-case test) but inconsistent. Fixed: check added for consistency."
   ]
 }
+
 
 
