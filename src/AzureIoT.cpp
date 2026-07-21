@@ -440,8 +440,19 @@ void AzureIoTClass::flush() {
 
     if (!ensureMqttConnected()) return;
 
-    char topic[96];
-    snprintf(topic, sizeof(topic), "devices/%s/messages/events/", s_deviceId);
+    // 160, not 96: without declaring content-type/content-encoding, Azure
+    // IoT Hub still ACCEPTS and forwards the message (so "last data
+    // received" updates), but IoT Central specifically won't reliably
+    // parse/display it as JSON without this -- confirmed against
+    // Microsoft's own IoT Hub message-format docs, not assumed. The
+    // declaration itself adds real length the old 96-byte buffer didn't
+    // have room for.
+    char topic[160];
+    int topicLen = snprintf(topic, sizeof(topic), "devices/%s/messages/events/$.ct=application%%2Fjson&$.ce=utf-8", s_deviceId);
+    if (topicLen <= 0 || (size_t)topicLen >= sizeof(topic)) {
+        Serial.println("AzureIoT: internal error building telemetry topic -- dropped.");
+        return;
+    }
 
     char payload[220];
     const size_t cap = sizeof(payload);
@@ -487,8 +498,12 @@ void AzureIoTClass::publishText(const char *key, const char *value) {
     // publish()/loop() give you for free.
     if (!ensureMqttConnected()) return;
 
-    char topic[96];
-    snprintf(topic, sizeof(topic), "devices/%s/messages/events/", s_deviceId);
+    char topic[160]; // see flush() for why 160, not 96, and why the content-type/encoding declaration matters
+    int topicLen = snprintf(topic, sizeof(topic), "devices/%s/messages/events/$.ct=application%%2Fjson&$.ce=utf-8", s_deviceId);
+    if (topicLen <= 0 || (size_t)topicLen >= sizeof(topic)) {
+        Serial.println("AzureIoT: internal error building telemetry topic -- dropped.");
+        return;
+    }
 
     char payload[220];
     const size_t cap = sizeof(payload);
