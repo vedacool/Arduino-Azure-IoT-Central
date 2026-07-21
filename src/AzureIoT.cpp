@@ -221,7 +221,15 @@ bool AzureIoTClass::ensureMqttConnected() {
     int usernameLen;
     if (s_modelId[0] != '\0') {
         char modelIdEnc[400]; // 128 * 3 + margin
-        azureiot_url_encode(s_modelId, modelIdEnc, sizeof(modelIdEnc));
+        size_t encLen = azureiot_url_encode(s_modelId, modelIdEnc, sizeof(modelIdEnc));
+        if (encLen >= sizeof(modelIdEnc) - 1) {
+            // Can't happen with s_modelId capped at 128 chars against a
+            // 400-byte buffer (128*3=384 worst case) -- but checked anyway,
+            // consistent with every other buffer in this file, rather than
+            // assumed safe because the sizes happen to work out today.
+            Serial.println("AzureIoT: internal error encoding model ID -- aborting connect.");
+            return false;
+        }
         usernameLen = snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12&model-id=%s",
                                 s_iotHubHost, s_deviceId, modelIdEnc);
     } else {
