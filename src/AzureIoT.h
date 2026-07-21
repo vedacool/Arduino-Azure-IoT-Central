@@ -86,27 +86,32 @@ public:
     // modelId is OPTIONAL -- omit it (or pass "") for plain telemetry-only
     // sketches; every example that doesn't use onBoolProperty()/
     // reportBoolProperty() works exactly as before without it. If your
-    // sketch DOES use those, though, pass your device template's DTDL model
-    // ID here -- e.g.:
+    // sketch uses those, you CAN pass your device template's DTDL model ID
+    // here -- e.g.:
     //
     //   AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE,
     //                   IOTC_DEVICE_ID, IOTC_DEVICE_KEY, IOTC_MODEL_ID);
     //
-    // WHY: per Microsoft's own IoT Plug and Play conventions, "IoT Central
-    // devices that connect through DPS should follow IoT Plug and Play
-    // conventions and send their model ID when they register" -- this is
-    // what lets IoT Central know which device template's writable
-    // properties this specific device is allowed to receive. Telemetry and
-    // device-template ASSIGNMENT can work without it (an enrollment group
-    // can have a fixed template configured administratively) -- but
-    // writable properties are the one thing that's been observed, on real
-    // hardware, to silently not arrive at all without this declared.
+    // WHY IT EXISTS: per Microsoft's own IoT Plug and Play conventions, "IoT
+    // Central devices that connect through DPS should follow IoT Plug and
+    // Play conventions and send their model ID when they register."
     //
-    // HOW TO FIND YOURS: in IoT Central, go to your device template, click
-    // the "{} Edit DTDL" button, and look for the top-level "@id" field --
-    // it looks like "dtmi:yourapp:yourtemplate_xxx;1". Copy that exact
-    // string (including the ";1") into your sketch's config.h as
-    // IOTC_MODEL_ID, then pass it here.
+    // IS IT ACTUALLY REQUIRED FOR WRITABLE PROPERTIES? Real hardware testing
+    // says: not necessarily. onBoolProperty()/reportBoolProperty() were
+    // confirmed working correctly BOTH with and without a model ID declared
+    // (at least with a DPS enrollment group that already has a fixed device
+    // template configured, which handles template assignment
+    // administratively regardless of what the device announces). If your
+    // writable property seems stuck "pending" and never updates, that's much
+    // more likely a different, real bug -- check this library's
+    // DEVELOPMENT.md bug history before assuming you need to set this.
+    //
+    // HOW TO FIND YOURS, if you do want to set it: in IoT Central, go to
+    // your device template, click the "{} Edit DTDL" button, and look for
+    // the top-level "@id" field -- it looks like
+    // "dtmi:yourapp:yourtemplate_xxx;1". Copy that exact string (including
+    // the ";1") into your sketch's config.h as IOTC_MODEL_ID, then pass it
+    // here.
     //
     // Declared in TWO places once set: the DPS registration payload (what
     // determines template auto-assignment) and the IoT Hub MQTT connect
