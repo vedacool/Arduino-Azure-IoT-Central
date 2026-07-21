@@ -82,8 +82,41 @@ public:
     // Blocks until successful (with visible retries) -- see the sketch's
     // Serial output while this runs. Call any of the setters below BEFORE
     // this, if you want to change their defaults.
+    //
+    // modelId is OPTIONAL -- omit it (or pass "") for plain telemetry-only
+    // sketches; every example that doesn't use onBoolProperty()/
+    // reportBoolProperty() works exactly as before without it. If your
+    // sketch DOES use those, though, pass your device template's DTDL model
+    // ID here -- e.g.:
+    //
+    //   AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE,
+    //                   IOTC_DEVICE_ID, IOTC_DEVICE_KEY, IOTC_MODEL_ID);
+    //
+    // WHY: per Microsoft's own IoT Plug and Play conventions, "IoT Central
+    // devices that connect through DPS should follow IoT Plug and Play
+    // conventions and send their model ID when they register" -- this is
+    // what lets IoT Central know which device template's writable
+    // properties this specific device is allowed to receive. Telemetry and
+    // device-template ASSIGNMENT can work without it (an enrollment group
+    // can have a fixed template configured administratively) -- but
+    // writable properties are the one thing that's been observed, on real
+    // hardware, to silently not arrive at all without this declared.
+    //
+    // HOW TO FIND YOURS: in IoT Central, go to your device template, click
+    // the "{} Edit DTDL" button, and look for the top-level "@id" field --
+    // it looks like "dtmi:yourapp:yourtemplate_xxx;1". Copy that exact
+    // string (including the ";1") into your sketch's config.h as
+    // IOTC_MODEL_ID, then pass it here.
+    //
+    // Declared in TWO places once set: the DPS registration payload (what
+    // determines template auto-assignment) and the IoT Hub MQTT connect
+    // username (the live per-connection declaration IoT Central checks
+    // before delivering property patches) -- both matter, per the same
+    // Microsoft guidance, and this single parameter threads it through to
+    // both automatically.
     void begin(const char *wifiSsid, const char *wifiPassword,
-               const char *idScope, const char *deviceId, const char *deviceKey);
+               const char *idScope, const char *deviceId, const char *deviceKey,
+               const char *modelId = nullptr);
 
     // Call this once per loop() iteration, every iteration. Handles Wi-Fi/
     // MQTT reconnection, SAS token refresh, and the automatic timed flush

@@ -60,7 +60,7 @@ void setup() {
     dht.begin();
 
     AzureIoT.onBoolProperty("muted", onMuted);
-    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY, IOTC_MODEL_ID);
 }
 
 void loop() {

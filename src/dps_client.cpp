@@ -135,7 +135,7 @@ static int httpRequest(SecureWiFiClient &client, const char *dpsGlobalHost,
 }
 
 bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceKeyB64,
-                   const char *dpsGlobalHost, DpsResult &out) {
+                   const char *dpsGlobalHost, const char *modelId, DpsResult &out) {
     // resourceUri for DPS = "{idScope}/registrations/{deviceId}"
     char resourceUri[160];
     snprintf(resourceUri, sizeof(resourceUri), "%s/registrations/%s", idScope, deviceId);
@@ -150,8 +150,23 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
     snprintf(path, sizeof(path), "/%s/registrations/%s/register?api-version=%s",
              idScope, deviceId, DPS_API_VERSION);
 
-    char reqBody[80];
-    int bodyLen = snprintf(reqBody, sizeof(reqBody), "{\"registrationId\":\"%s\"}", deviceId);
+    // 260, not 80: with a modelId, the body is
+    // {"registrationId":"...","payload":{"modelId":"..."}} -- the fixed
+    // wrapper text alone is ~45 chars, plus deviceId (up to 64) and modelId
+    // (dtmi strings can run long with nested namespaces -- sized to match
+    // AzureIoT.cpp's s_modelId[128]).
+    char reqBody[260];
+    int bodyLen;
+    if (modelId && modelId[0] != '\0') {
+        bodyLen = snprintf(reqBody, sizeof(reqBody),
+                            "{\"registrationId\":\"%s\",\"payload\":{\"modelId\":\"%s\"}}",
+                            deviceId, modelId);
+    } else {
+        bodyLen = snprintf(reqBody, sizeof(reqBody), "{\"registrationId\":\"%s\"}", deviceId);
+    }
+    if (bodyLen <= 0 || (size_t)bodyLen >= sizeof(reqBody)) {
+        return false; // deviceId/modelId combination too long to fit -- fail loudly rather than send a truncated (invalid) registration body
+    }
 
     char respBody[512];
     SecureWiFiClient client;

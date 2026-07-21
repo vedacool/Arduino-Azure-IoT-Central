@@ -156,7 +156,7 @@ void onLedState(bool on) {
 
 void setup() {
     AzureIoT.onBoolProperty("ledState", onLedState); // call BEFORE begin()
-    AzureIoT.begin(...);
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY, IOTC_MODEL_ID);
 }
 
 void loop() {
@@ -166,6 +166,7 @@ void loop() {
 
 A few things worth knowing:
 
+- **This needs your device template's model ID, passed as `begin()`'s 6th (optional) argument.** Plain telemetry-only sketches don't need this at all — it's specifically for `onBoolProperty()`/`reportBoolProperty()`. Per Microsoft's own IoT Plug and Play conventions, an IoT Central device "should follow IoT Plug and Play conventions and send their model ID when they register" — this is what lets IoT Central know which template's writable properties this device is allowed to receive. Find yours in IoT Central: your device template → **"{} Edit DTDL"** button → the top-level `"@id"` field, something like `"dtmi:yourapp:yourtemplate_xxx;1"` — copy it exactly (including the `;1`) into `config.h` as `IOTC_MODEL_ID`. See `15_LedCloudControl`'s `config.h` for the exact placeholder.
 - **You still need to add the property to your device template in IoT Central** (Devices → your device's template → Add capability → Property → Writable, boolean) — the library change alone doesn't make a control appear in the dashboard; IoT Central needs to know the property exists and what type it is.
 - **`name` follows the same rule as `publish()`'s key** — pass a string literal (`"ledState"`), not something built at runtime.
 - **The dashboard shows "synced" automatically.** After your callback returns, the library sends a full IoT Plug-and-Play-style acknowledgment (value, status, version) back to Azure — you don't write any of that yourself.

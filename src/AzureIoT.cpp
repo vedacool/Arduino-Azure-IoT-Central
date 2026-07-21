@@ -7,6 +7,7 @@
 #include "sas_token.h"
 #include "dps_client.h"
 #include "reset.h"
+#include "b64url.h"
 
 static SecureWiFiClient s_wifiClient;
 static PubSubClient s_mqttClient(s_wifiClient);
@@ -25,6 +26,7 @@ static char s_wifiPassword[64] = {0};
 static char s_idScope[32] = {0};
 static char s_deviceIdInput[64] = {0}; // the ID used to CALL dpsProvision()
 static char s_deviceKey[200] = {0};
+static char s_modelId[128] = {0}; // optional -- see begin()'s modelId parameter
 
 // ---- Tuning, overridable via the setters in AzureIoT.h before begin() ----
 static char s_dpsGlobalHost[64] = "global.azure-devices-provisioning.net";
@@ -156,7 +158,7 @@ static void connectWiFi() {
 static bool provisionDevice() {
     Serial.println("Provisioning via DPS...");
     DpsResult result;
-    if (!dpsProvision(s_idScope, s_deviceIdInput, s_deviceKey, s_dpsGlobalHost, result)) {
+    if (!dpsProvision(s_idScope, s_deviceIdInput, s_deviceKey, s_dpsGlobalHost, s_modelId, result)) {
         Serial.println("DPS provisioning FAILED.");
         return false;
     }
@@ -209,9 +211,23 @@ bool AzureIoTClass::ensureMqttConnected() {
     // blips) would mean needless repeated heap churn on a 6KB-RAM board for
     // no benefit, since the size never changes.
 
-    char username[220]; // margin against s_iotHubHost (127 max) + s_deviceId (63 max) is real but tight (4 bytes) -- checked below rather than assumed, so a future change to either buffer's size can't silently reintroduce truncation
-    int usernameLen = snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12",
-             s_iotHubHost, s_deviceId);
+    // 700, not 220: with a model-id appended, worst case is
+    // s_iotHubHost (127) + s_deviceId (63) + the fixed "&model-id=" text +
+    // a fully percent-encoded 128-byte model ID (every character encoded,
+    // 3x expansion -- DTMI strings only ever need ':'/';' escaped in
+    // practice, but sized for the true worst case rather than the typical
+    // one, same reasoning as every other buffer fix this session).
+    char username[700];
+    int usernameLen;
+    if (s_modelId[0] != '\0') {
+        char modelIdEnc[400]; // 128 * 3 + margin
+        azureiot_url_encode(s_modelId, modelIdEnc, sizeof(modelIdEnc));
+        usernameLen = snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12&model-id=%s",
+                                s_iotHubHost, s_deviceId, modelIdEnc);
+    } else {
+        usernameLen = snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12",
+                                s_iotHubHost, s_deviceId);
+    }
     if (usernameLen <= 0 || (size_t)usernameLen >= sizeof(username)) {
         Serial.println("AzureIoT: internal error building MQTT username -- aborting connect.");
         return false;
@@ -538,12 +554,16 @@ void AzureIoTClass::publishText(const char *key, const char *value) {
 }
 
 void AzureIoTClass::begin(const char *wifiSsid, const char *wifiPassword,
-                           const char *idScope, const char *deviceId, const char *deviceKey) {
+                           const char *idScope, const char *deviceId, const char *deviceKey,
+                           const char *modelId) {
     strncpy(s_wifiSsid, wifiSsid, sizeof(s_wifiSsid) - 1);
     strncpy(s_wifiPassword, wifiPassword, sizeof(s_wifiPassword) - 1);
     strncpy(s_idScope, idScope, sizeof(s_idScope) - 1);
     strncpy(s_deviceIdInput, deviceId, sizeof(s_deviceIdInput) - 1);
     strncpy(s_deviceKey, deviceKey, sizeof(s_deviceKey) - 1);
+    if (modelId) {
+        strncpy(s_modelId, modelId, sizeof(s_modelId) - 1);
+    }
 
     connectWiFi();
 

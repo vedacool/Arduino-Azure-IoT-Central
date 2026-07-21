@@ -29,7 +29,7 @@ void setup() {
     // Must be called BEFORE begin() -- see AzureIoT.h for the full design.
     AzureIoT.onBoolProperty("ledState", onLedState);
 
-    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY, IOTC_MODEL_ID);
 }
 
 void loop() {

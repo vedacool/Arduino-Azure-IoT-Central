@@ -16,7 +16,15 @@ struct DpsResult {
 // dpsGlobalHost is normally "global.azure-devices-provisioning.net" --
 // passed in rather than read from a config.h this file can't reliably see
 // (see AzureIoT.h for why). Returns true and fills `out` on success.
+//
+// modelId is optional (pass nullptr or "" to omit) -- when provided, it's
+// sent as {"payload":{"modelId":"..."}} in the registration request, per
+// Microsoft's documented IoT Plug and Play convention for DPS registration
+// ("IoT Central devices that connect through DPS should follow IoT Plug and
+// Play conventions and send their model ID when they register" -- IoT
+// Central uses this for device template auto-assignment). See AzureIoT.h's
+// begin() for the full design and how to find your model ID.
 bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceKeyB64,
-                   const char *dpsGlobalHost, DpsResult &out);
+                   const char *dpsGlobalHost, const char *modelId, DpsResult &out);
 
 #endif
