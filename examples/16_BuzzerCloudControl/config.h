@@ -22,13 +22,6 @@ static const char IOTC_ID_SCOPE[]    = "<ID Scope, e.g. 0ne00XXXXXX>";
 static const char IOTC_DEVICE_ID[]   = "<Device ID>";
 static const char IOTC_DEVICE_KEY[]  = "<Primary or computed device key, base64>";
 
-// This example uses AzureIoT.onBoolProperty(), which needs your device
-// template's model ID declared during connection (see AzureIoT.h's begin()
-// for why). Find yours in IoT Central: Device templates > your template >
-// "{} Edit DTDL" button > the top-level "@id" field, e.g.
-// "dtmi:yourapp:yourtemplate_xxx;1" -- copy it exactly, including the ";1".
-static const char IOTC_MODEL_ID[] = "<dtmi:yourapp:yourtemplate_xxx;1>";
-
 // That's it -- these five are passed straight into AzureIoT.begin() in
 // this sketch's setup(). Everything else (send interval, timeouts, the
 // Wi-Fi self-healing thresholds, DPS retry backoff, the DPS endpoint for
