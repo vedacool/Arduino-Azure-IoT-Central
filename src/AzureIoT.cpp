@@ -567,6 +567,11 @@ void AzureIoTClass::flush() {
 }
 
 void AzureIoTClass::publishText(const char *key, const char *value) {
+    if (s_pullOnlyMode) {
+        Serial.println("AzureIoT.publishText: this device is in pull-only mode (onRemoteTelemetry() was registered) -- there's no MQTT connection to send through. Ignored.");
+        return;
+    }
+
     // Sends immediately -- does NOT go through the staged/batched path that
     // publish(key, float) uses. Deliberately kept separate: adding string
     // storage to the shared staging array would cost real RAM (a fixed-size
@@ -900,6 +905,11 @@ static void pollRemoteTelemetry() {
 }
 
 void AzureIoTClass::reportBoolProperty(const char *name, bool value) {
+    if (s_pullOnlyMode) {
+        Serial.println("AzureIoT.reportBoolProperty: this device is in pull-only mode (onRemoteTelemetry() was registered) -- there's no MQTT connection to send through, and pull-only mode's loop() doesn't retry pending reports either. Ignored.");
+        return;
+    }
+
     // Flat form -- {"name":value} -- no ac/av/ad wrapper, since that
     // convention specifically means "acknowledging a particular desired
     // version" (see ackBoolProperty() above), which doesn't apply to a
