@@ -21,9 +21,17 @@ static bool extractJsonFloat(const char *json, const char *key, float *out) {
     p++;
     while (*p == ' ') p++;
     char *endptr;
-    float v = strtof(p, &endptr);
+    // strtod(), not strtof() -- confirmed via a real compile error on actual
+    // Uno WiFi Rev2 hardware that this board's avr-libc doesn't declare
+    // strtof() at all (some avr-libc versions lack it entirely, or gate it
+    // behind a feature-test macro Arduino's build doesn't set), even though
+    // it's a fairly standard C function on desktop platforms. strtod() (and
+    // atof()) are confirmed present across avr-libc versions, so this
+    // parses as double and casts down to float rather than risk the same
+    // gap on strtof().
+    double v = strtod(p, &endptr);
     if (endptr == p) return false;
-    *out = v;
+    *out = (float)v;
     return true;
 }
 
