@@ -276,6 +276,56 @@ public:
     // peripheral, not a bug.
     void enableWatchdog();
 
+    // ---- Optional: reading ANOTHER device's telemetry ----
+    //
+    // Lets your sketch react to a DIFFERENT device's telemetry -- e.g.
+    // sound a buzzer here when SOME OTHER board's "temperature" reading
+    // crosses a threshold. This is fundamentally different from
+    // onBoolProperty(): that receives a PUSH the instant the cloud sends
+    // it; this POLLS Azure's REST API on a timer, because devices cannot
+    // subscribe to another device's telemetry directly over MQTT -- Azure
+    // deliberately keeps each device's connection scoped to only its own
+    // data, as a security boundary, not a limitation of this library.
+    //
+    // Setup:
+    //   1. Generate an IoT Central "API token" -- NOT the same as your
+    //      device's own Connect credentials. In IoT Central:
+    //      Permissions -> API tokens -> New -> role "Operator" (the least-
+    //      privileged role that can still read telemetry).
+    //   2. AzureIoT.setRemoteAccess("your-app-subdomain", "SharedAccessSignature sr=...");
+    //   3. AzureIoT.onRemoteTelemetry("temperature", "arduino1", myCallback);
+    //
+    // Call setRemoteAccess()/onRemoteTelemetry() BEFORE begin(), same as
+    // onBoolProperty(). AzureIoT.loop() polls automatically on the interval
+    // set by setRemotePollInterval() (default 15000ms).
+    //
+    // Fixed cap of 4 remote watches (not 16, like publish()'s staged keys
+    // or onBoolProperty()'s registrations) -- each one costs a real network
+    // round-trip on every poll, not just a few bytes of RAM, so the cap is
+    // deliberately much lower.
+    void setRemoteAccess(const char *appSubdomain, const char *apiToken);
+
+    typedef void (*RemoteTelemetryCallback)(float value);
+    void onRemoteTelemetry(const char *telemetryName, const char *remoteDeviceId, RemoteTelemetryCallback callback);
+
+    // How often AzureIoT.loop() polls each registered remote-telemetry
+    // watch. Default 15000ms if never called.
+    //
+    // FASTEST ALLOWED: 1000ms -- a HARD floor enforced here, not just
+    // documented. Unlike every other setter in this library, going too low
+    // here doesn't only cost THIS device resources -- IoT Central's REST
+    // API has a documented rate limit of 20 requests/second PER APPLICATION,
+    // shared across every caller, not just this device. A value below
+    // 1000ms is clamped up to 1000ms with a Serial warning explaining why,
+    // rather than silently accepted.
+    //
+    // Even at the 1000ms floor, be aware this is genuinely new territory:
+    // every poll is a brand-new HTTPS/TLS connection (the single heaviest
+    // operation this library does), and polling that frequently, back to
+    // back, forever, hasn't been endurance-tested on real hardware the way
+    // the rest of this library has -- see DEVELOPMENT.md.
+    void setRemotePollInterval(unsigned long ms);
+
 private:
     bool ensureMqttConnected();
     void flush();

@@ -8,6 +8,7 @@
 #include "dps_client.h"
 #include "reset.h"
 #include "b64url.h"
+#include "remote_telemetry.h"
 
 static SecureWiFiClient s_wifiClient;
 static PubSubClient s_mqttClient(s_wifiClient);
@@ -78,11 +79,26 @@ struct PendingReport { const char *name; bool value; bool pending; };
 static PendingReport s_pendingReports[16];
 static size_t s_pendingReportCount = 0;
 
+// Remote-telemetry polling (reading ANOTHER device's telemetry via the IoT
+// Central REST API -- see onRemoteTelemetry() in AzureIoT.h for the full
+// design). Separate credential from this device's own DPS/MQTT identity --
+// an IoT Central "API token", scoped to the whole application, not one
+// device.
+static char s_remoteAppSubdomain[128] = {0};
+static char s_remoteApiToken[300] = {0};
+static unsigned long s_remotePollIntervalMs = 15000;
+static unsigned long s_lastRemotePollMillis = 0;
+
+struct RemoteTelemetryReg { const char *telemetryName; const char *remoteDeviceId; AzureIoTClass::RemoteTelemetryCallback callback; };
+static RemoteTelemetryReg s_remoteTelemetryRegs[4];
+static size_t s_remoteTelemetryCount = 0;
+
 // Forward declarations -- defined further down (near the other JSON
 // helpers), but referenced from ensureMqttConnected() above that point.
 static void requestFullTwin();
 static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int length);
 static void retryPendingReports();
+static void pollRemoteTelemetry();
 
 static void connectWiFi() {
     // Tracks cumulative time since Wi-Fi was last known good, across
@@ -684,6 +700,7 @@ void AzureIoTClass::loop() {
     ensureMqttConnected();
     s_mqttClient.loop();
     retryPendingReports(); // catch up on anything reportBoolProperty() couldn't send earlier
+    pollRemoteTelemetry(); // reads another device's telemetry, if onRemoteTelemetry() is registered
 
     if (millis() - s_lastFlushMillis >= s_sendIntervalMs) {
         flush();
@@ -729,6 +746,32 @@ void AzureIoTClass::enableWatchdog() {
     Serial.println("Watchdog enabled -- device resets if not petted for ~8s.");
 }
 
+void AzureIoTClass::setRemoteAccess(const char *appSubdomain, const char *apiToken) {
+    strncpy(s_remoteAppSubdomain, appSubdomain, sizeof(s_remoteAppSubdomain) - 1);
+    strncpy(s_remoteApiToken, apiToken, sizeof(s_remoteApiToken) - 1);
+}
+
+void AzureIoTClass::onRemoteTelemetry(const char *telemetryName, const char *remoteDeviceId, RemoteTelemetryCallback callback) {
+    if (s_remoteTelemetryCount < 4) {
+        s_remoteTelemetryRegs[s_remoteTelemetryCount].telemetryName = telemetryName;
+        s_remoteTelemetryRegs[s_remoteTelemetryCount].remoteDeviceId = remoteDeviceId;
+        s_remoteTelemetryRegs[s_remoteTelemetryCount].callback = callback;
+        s_remoteTelemetryCount++;
+    } else {
+        Serial.println("AzureIoT.onRemoteTelemetry: too many remote watches registered (max 4) -- dropped.");
+    }
+}
+
+void AzureIoTClass::setRemotePollInterval(unsigned long ms) {
+    if (ms < 1000) {
+        Serial.print("AzureIoT.setRemotePollInterval: ");
+        Serial.print(ms);
+        Serial.println("ms is below the 1000ms floor -- clamped to 1000ms. Going lower risks Azure's shared 20 req/sec PER-APPLICATION rate limit, not just this device's own resources.");
+        ms = 1000;
+    }
+    s_remotePollIntervalMs = ms;
+}
+
 // Shared by reportBoolProperty() and retryPendingReports() below -- builds
 // and sends the flat {"name":value} reported-property update, returning
 // whether it actually went out. Doesn't touch s_pendingReports itself;
@@ -766,6 +809,45 @@ static void retryPendingReports() {
         }
         // else: still not connected, or this particular publish() failed --
         // leave pending=true, try again next loop().
+    }
+}
+
+// Polls every registered remote-telemetry watch, once per s_remotePollIntervalMs.
+// Logged verbosely on purpose -- the off-by-one bug found earlier in this
+// library's history was only catchable because of similar logging around
+// mqttMessageCallback(); a silent "nothing happens, no idea why" failure
+// mode is exactly what real hardware testing has repeatedly shown to be the
+// hardest thing to debug in this class of feature.
+static void pollRemoteTelemetry() {
+    if (s_remoteTelemetryCount == 0) return;
+    if (millis() - s_lastRemotePollMillis < s_remotePollIntervalMs) return;
+    s_lastRemotePollMillis = millis();
+
+    if (s_remoteAppSubdomain[0] == '\0' || s_remoteApiToken[0] == '\0') {
+        Serial.println("AzureIoT: onRemoteTelemetry() is registered, but setRemoteAccess() was never called (or was called with an empty value) -- skipping poll.");
+        return;
+    }
+
+    for (size_t i = 0; i < s_remoteTelemetryCount; i++) {
+        float value;
+        bool ok = azureiot_poll_remote_telemetry(s_remoteAppSubdomain, s_remoteApiToken,
+                                                   s_remoteTelemetryRegs[i].remoteDeviceId,
+                                                   s_remoteTelemetryRegs[i].telemetryName, &value);
+        if (ok) {
+            Serial.print("AzureIoT: remote telemetry '");
+            Serial.print(s_remoteTelemetryRegs[i].telemetryName);
+            Serial.print("' from device '");
+            Serial.print(s_remoteTelemetryRegs[i].remoteDeviceId);
+            Serial.print("' = ");
+            Serial.println(value);
+            s_remoteTelemetryRegs[i].callback(value);
+        } else {
+            Serial.print("AzureIoT: remote telemetry poll FAILED for '");
+            Serial.print(s_remoteTelemetryRegs[i].telemetryName);
+            Serial.print("' from device '");
+            Serial.print(s_remoteTelemetryRegs[i].remoteDeviceId);
+            Serial.println("' -- check your API token/app subdomain, and that the remote device has actually published this telemetry name. Will retry next interval.");
+        }
     }
 }
 

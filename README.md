@@ -2,7 +2,7 @@
 
 An Arduino library that connects a Uno WiFi Rev2 **or an ESP32 board** to Azure IoT Central: Wi-Fi, on-device Azure DPS provisioning, and MQTT telemetry — no PC-side tools, no editing library files, no config-table to learn.
 
-If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has twenty ready-to-run sketches -- sensors, actuators, and combinations of both, including cloud-to-device control -- each a short, complete sketch you can read top to bottom, plus a connection-test sketch that needs no hardware at all.
+If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has twenty-one ready-to-run sketches -- sensors, actuators, and combinations of both, including cloud-to-device control -- each a short, complete sketch you can read top to bottom, plus a connection-test sketch that needs no hardware at all.
 
 ---
 
@@ -15,7 +15,7 @@ If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Cent
 **Alternative (manual):** clone or unzip this repo, then rename the resulting folder to `AzureIoT` and place it directly in your Arduino libraries folder:
 - Windows/Mac/Linux: `Documents/Arduino/libraries/AzureIoT`
 
-Either way, restart the Arduino IDE afterward. You should now see **File → Examples → AzureIoT** listing the twenty examples.
+Either way, restart the Arduino IDE afterward. You should now see **File → Examples → AzureIoT** listing the twenty-one examples.
 
 ### 2. Board-specific setup
 
@@ -82,7 +82,7 @@ Check IoT Central → **Devices → your device → View** — you should see th
 
 ## The examples
 
-All twenty numbered examples use **Seeed Studio Grove-ecosystem sensor and actuator modules**, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
+All twenty-one numbered examples use **Seeed Studio Grove-ecosystem sensor and actuator modules**, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
 
 **If you're on ESP32** (or any board without a Grove Base Shield): these examples assume you either have Grove-to-breadboard adapter cables for your specific board, or you're substituting an equivalent module and wiring it directly — in which case update the pin constant near the top of each `.ino` (e.g. `const int PIN_TEMPERATURE = A0;`) to match your actual wiring, and check whether your specific ESP32 board's analog/digital pin numbering matches these constants at all (ESP32 boards vary in which GPIOs are broken out and analog-capable). `00_ConnectionTest` needs none of this — it's the one example with no hardware requirement at all.
 
@@ -111,6 +111,7 @@ They're numbered roughly easiest-to-hardest, not alphabetically or by sensor typ
 | 18 | `18_AutoNightLight` | Automatic sensor-threshold logic + cloud override | Light (A4) → LED (pin 7) |
 | 19 | `19_ComfortAlarm` | Same pattern as 18, with the harder DHT11 sensor | Temp & Humidity (pin 2) → Buzzer (pin 6) |
 | 20 | `20_ButtonLedTwoWaySync` | Hardest: sensor + actuator + full two-way sync | Button (pin 4) + LED (pin 7) |
+| 21 | `21_RemoteTemperatureAlarm` | Reading a DIFFERENT device's telemetry via REST polling (v1.1+) | Buzzer (pin 6), no local sensor |
 
 Every example is the same three-part shape:
 ```cpp
@@ -194,6 +195,39 @@ A few things worth knowing:
 - **`AzureIoT.loop()` pets it automatically** -- as long as your own code between two `AzureIoT.loop()` calls finishes well under 8 seconds, you don't need to do anything else.
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for the implementation details (why ~8 seconds, and why petting placement matters).
+
+## Reading another device's telemetry (v1.1+)
+
+Everything above is about *this* device's own data and control. Sometimes you want one device to react to a *different* device's reading -- e.g. Device B sounds a buzzer when Device A's `temperature` crosses 30°C.
+
+**This can't work as a push, and that's a deliberate Azure security boundary, not a limitation of this library.** A device's credentials only ever grant it access to its own telemetry and its own twin -- there's no MQTT mechanism for one device to subscribe to another's data stream. The only way to bridge them is to poll Azure's REST API on a timer.
+
+```cpp
+void onRemoteTemperature(float value) {
+    if (value > 30.0f) tone(PIN_BUZZER, 1000);
+    else noTone(PIN_BUZZER);
+}
+
+void setup() {
+    AzureIoT.setRemoteAccess(IOTC_REMOTE_APP_SUBDOMAIN, IOTC_REMOTE_API_TOKEN); // call BEFORE begin()
+    AzureIoT.onRemoteTelemetry("temperature", "arduino1", onRemoteTemperature);  // call BEFORE begin()
+    AzureIoT.begin(...);
+}
+
+void loop() {
+    AzureIoT.loop(); // also polls for the remote value now, on the interval below
+}
+```
+
+See `21_RemoteTemperatureAlarm` for the complete example.
+
+A few things worth knowing:
+
+- **This needs a different credential than everything else in this library** -- an IoT Central **API token**, not your device's own Connect credentials. Generate one in IoT Central: **Permissions → API tokens → New** → role **"App Operator"** (the least-privileged role that can still read telemetry -- don't use App Administrator or App Builder for this). This token is scoped to the whole *application*, not one device, so treat it with more care than a single device's key.
+- **Fastest allowed: 1000ms**, set via `AzureIoT.setRemotePollInterval(ms)` (default 15000ms). This is a hard floor enforced in code, not just a suggestion -- go lower and it's silently clamped back up to 1000ms with a warning. The reason is different from every other tunable in this library: going too fast here doesn't just cost *this* device resources, it risks Azure's own **20 requests/second, per-application** rate limit -- shared across every caller of your app's API, not just this one device.
+- **This is polling, not push** -- there's an inherent delay equal to whatever interval you set. If you need an instant reaction the moment a threshold is crossed, an IoT Central Rule with a Power Automate/Logic Apps action is the better fit; this feature is for "check periodically," not "react immediately."
+- **Fixed cap of 4 remote watches**, lower than the 16 used for local properties, since each one costs a real network round-trip on every poll, not just a few bytes of RAM.
+- **Every poll is a brand-new HTTPS/TLS connection** -- the single heaviest thing this board does. Even at the 1000ms floor, this is genuinely new, less-tested territory compared to the rest of this library -- see DEVELOPMENT.md.
 
 ## Troubleshooting
 

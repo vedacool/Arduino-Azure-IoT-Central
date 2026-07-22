@@ -1,5 +1,6 @@
 #include "dps_client.h"
 #include "sas_token.h"
+#include "http_client.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -28,110 +29,6 @@ static bool extractJsonString(const char *json, const char *key, char *out, size
     memcpy(out, p, len);
     out[len] = '\0';
     return true;
-}
-
-// Reads one line (up to and including '\n', which is stripped, as is a
-// trailing '\r') into buf. Returns line length, or -1 on timeout/overflow.
-// No String, no heap allocation -- matches the fixed-buffer approach used
-// everywhere else in this sketch.
-static int readLine(SecureWiFiClient &client, char *buf, size_t bufCap, unsigned long timeoutMs) {
-    size_t n = 0;
-    unsigned long start = millis();
-    while (millis() - start < timeoutMs) {
-        if (client.available()) {
-            char c = (char)client.read();
-            if (c == '\n') {
-                if (n > 0 && buf[n-1] == '\r') n--;
-                buf[n] = '\0';
-                return (int)n;
-            }
-            if (n + 1 >= bufCap) {
-                buf[n] = '\0';
-                return (int)n; // line longer than our buffer; caller gets what fit
-            }
-            buf[n++] = c;
-        } else if (!client.connected()) {
-            break;
-        } else {
-            delay(5);
-        }
-    }
-    buf[n] = '\0';
-    return n > 0 ? (int)n : -1;
-}
-
-// Sends one HTTPS request over an already-connected SecureWiFiClient and reads
-// the response body into `body` (headers are skipped). Returns HTTP status
-// code, or -1 on failure/timeout.
-static int httpRequest(SecureWiFiClient &client, const char *dpsGlobalHost,
-                        const char *method, const char *path,
-                        const char *authHeader, const char *body, size_t bodyLen,
-                        char *respBody, size_t respBodyCap) {
-    configureSecureClient(client);
-    if (!client.connect(dpsGlobalHost, 443)) return -1;
-
-    client.print(method);
-    client.print(" ");
-    client.print(path);
-    client.println(" HTTP/1.1");
-    client.print("Host: ");
-    client.println(dpsGlobalHost);
-    client.println("Connection: close");
-    client.println("Content-Type: application/json");
-    client.print("Authorization: ");
-    client.println(authHeader);
-    if (bodyLen > 0) {
-        client.print("Content-Length: ");
-        client.println((unsigned long)bodyLen);
-        client.println();
-        client.write((const uint8_t *)body, bodyLen);
-    } else {
-        client.println();
-    }
-
-    unsigned long start = millis();
-    while (!client.available() && millis() - start < 10000UL) {
-        delay(20);
-    }
-    if (!client.available()) {
-        client.stop();
-        return -1;
-    }
-
-    // Status line, e.g. "HTTP/1.1 202 Accepted"
-    char lineBuf[96];
-    if (readLine(client, lineBuf, sizeof(lineBuf), 5000UL) < 0) {
-        client.stop();
-        return -1;
-    }
-    int statusCode = -1;
-    char *sp = strchr(lineBuf, ' ');
-    if (sp) statusCode = atoi(sp + 1);
-
-    // Skip headers until the blank line.
-    while (true) {
-        int len = readLine(client, lineBuf, sizeof(lineBuf), 5000UL);
-        if (len <= 0) break; // blank line (end of headers) or timeout/EOF
-    }
-
-    // Read remaining body (chunked or not -- DPS responses observed in
-    // practice for this call are small and not chunk-encoded, so a straight
-    // read is fine; if Azure ever changes that, extractJsonString() below
-    // will simply fail to find its fields and dpsProvision() returns false
-    // rather than misbehaving silently).
-    size_t n = 0;
-    unsigned long bodyStart = millis();
-    while ((client.connected() || client.available()) && n < respBodyCap - 1 &&
-           millis() - bodyStart < 8000UL) {
-        if (client.available()) {
-            respBody[n++] = (char)client.read();
-        } else {
-            delay(10);
-        }
-    }
-    respBody[n] = '\0';
-    client.stop();
-    return statusCode;
 }
 
 bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceKeyB64,
@@ -170,7 +67,7 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
 
     char respBody[512];
     SecureWiFiClient client;
-    int status = httpRequest(client, dpsGlobalHost, "PUT", path, sasToken, reqBody, (size_t)bodyLen,
+    int status = azureiot_http_request(client, dpsGlobalHost, "PUT", path, sasToken, reqBody, (size_t)bodyLen,
                               respBody, sizeof(respBody));
     if (status != 202 && status != 200) {
         return false;
@@ -191,7 +88,7 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
                  idScope, deviceId, operationId, DPS_API_VERSION);
 
         SecureWiFiClient pollClient;
-        int pollStatus = httpRequest(pollClient, dpsGlobalHost, "GET", pollPath, sasToken, nullptr, 0,
+        int pollStatus = azureiot_http_request(pollClient, dpsGlobalHost, "GET", pollPath, sasToken, nullptr, 0,
                                       respBody, sizeof(respBody));
         if (pollStatus != 200 && pollStatus != 202) continue;
 
