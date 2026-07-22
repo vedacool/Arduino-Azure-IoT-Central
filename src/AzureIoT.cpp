@@ -892,7 +892,12 @@ static void pollRemoteTelemetry() {
             Serial.print("' -- HTTP status ");
             Serial.print(statusCode);
             if (statusCode == -1) {
-                Serial.println(" (the HTTPS connection itself never completed -- a network/hardware-level failure, not Azure saying no. Check Wi-Fi signal and whether a second secure connection alongside the primary MQTT one is actually supported.)");
+                Serial.print(" (the HTTPS connection itself never completed -- a network/hardware-level failure, not Azure saying no. Check Wi-Fi signal");
+                if (s_pullOnlyMode) {
+                    Serial.println(", and whether polling this frequently, sustained, is exhausting the Wi-Fi module's connection handling -- try a slower AzureIoT.setRemotePollInterval() if this keeps happening.)");
+                } else {
+                    Serial.println(" and whether a second secure connection alongside the primary MQTT one is actually supported.)");
+                }
             } else if (statusCode == 401 || statusCode == 403) {
                 Serial.println(" (likely a bad/expired API token -- check IOTC_REMOTE_API_TOKEN.)");
             } else if (statusCode == 404) {
