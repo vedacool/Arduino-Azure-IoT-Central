@@ -6,22 +6,34 @@
 // device (Device B) watches Device A's readings and reacts to them,
 // without ever running its own temperature sensor.
 //
-// This is fundamentally different from every other example in this set:
-// it doesn't use this device's own MQTT connection at all for the watching
-// part -- it POLLS Azure's REST API on a timer, because devices cannot
-// subscribe to another device's telemetry directly (a deliberate Azure
-// security boundary, not a limitation of this library -- see the README).
+// This device runs in PULL-ONLY MODE: it connects to Wi-Fi and polls
+// Azure's REST API, but does NOT connect its own identity to Azure at all
+// (no DPS, no MQTT) -- because onRemoteTelemetry() is registered below,
+// AzureIoT.begin() automatically skips that entirely. A device can, for
+// now, only ever SEND its own telemetry OR PULL another device's telemetry
+// -- not both at once (real hardware testing found running a persistent
+// MQTT connection and a separate periodic HTTPS poll at the same time is a
+// known-fragile combination on this board's Wi-Fi hardware -- see
+// DEVELOPMENT.md). This means the IOTC_ID_SCOPE/IOTC_DEVICE_ID/
+// IOTC_DEVICE_KEY fields in config.h are simply UNUSED here -- this device
+// never provisions an identity of its own.
 //
-// Setup, in addition to the usual Wi-Fi + Azure credentials:
-// 1. Generate an IoT Central "API token" -- NOT the same as this device's
-//    own Connect credentials. In IoT Central:
+// This is fundamentally different from every other example in this set in
+// another way too: it doesn't use MQTT at all -- it POLLS Azure's REST API
+// on a timer, because devices cannot subscribe to another device's
+// telemetry directly (a deliberate Azure security boundary, not a
+// limitation of this library -- see the README).
+//
+// Setup:
+// 1. Generate an IoT Central "API token" -- NOT the same as a device's own
+//    Connect credentials. In IoT Central:
 //    Permissions > API tokens > New > role "App Operator" (the
 //    least-privileged role that can still read telemetry -- don't use
 //    App Administrator or App Builder for this).
-// 2. Edit config.h in this folder: your Wi-Fi + Azure credentials as
-//    usual, PLUS IOTC_REMOTE_APP_SUBDOMAIN (your app's subdomain, e.g.
-//    "myapp" from "myapp.azureiotcentral.com") and IOTC_REMOTE_API_TOKEN
-//    (the full token string, including "SharedAccessSignature ...").
+// 2. Edit config.h in this folder: your Wi-Fi credentials, PLUS
+//    IOTC_REMOTE_APP_SUBDOMAIN (your app's subdomain, e.g. "myapp" from
+//    "myapp.azureiotcentral.com") and IOTC_REMOTE_API_TOKEN (the full
+//    token string, including "SharedAccessSignature ...").
 // 3. Change REMOTE_DEVICE_ID below to the actual device ID of whichever
 //    device is publishing the "temperature" you want to watch.
 
@@ -57,10 +69,15 @@ void setup() {
     // this device's resources.
     // AzureIoT.setRemotePollInterval(15000);
 
+    // Because onRemoteTelemetry() was already called above, this runs in
+    // PULL-ONLY MODE -- only WIFI_SSID/WIFI_PASSWORD actually matter here.
+    // IOTC_ID_SCOPE/IOTC_DEVICE_ID/IOTC_DEVICE_KEY are unused (this device
+    // never connects its own identity to Azure) -- config.h's placeholder
+    // values for those three are fine to leave exactly as they are.
     AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
 }
 
 void loop() {
-    AzureIoT.loop(); // always call this once per loop() -- handles reconnects, sending,
+    AzureIoT.loop(); // always call this once per loop() -- handles reconnects
                       // AND polling for the remote telemetry value on the interval above
 }

@@ -10,11 +10,18 @@
 //
 // Returns true and fills *outValue on success (HTTP 200 with a parseable
 // "value" field in the response). Returns false on any failure -- network
-// issue, auth failure, wrong device/telemetry name, non-numeric value --
-// without distinguishing which, matching the same simplicity-over-detail
-// tradeoff as dpsProvision()'s bool return elsewhere in this library.
+// issue, auth failure, wrong device/telemetry name, non-numeric value.
+//
+// outStatusCode (optional, pass nullptr to ignore) is filled with the raw
+// HTTP status code on any response received (401 = bad API token, 404 =
+// wrong device ID/telemetry name, etc.), or -1 specifically if the HTTPS
+// connection itself never completed (a stronger signal of a network/
+// hardware-level problem than an HTTP-level error response) -- added after
+// real hardware testing showed a plain true/false wasn't enough to tell
+// "the request failed at the network level" apart from "Azure responded
+// but said no."
 bool azureiot_poll_remote_telemetry(const char *appSubdomain, const char *apiToken,
                                      const char *remoteDeviceId, const char *telemetryName,
-                                     float *outValue);
+                                     float *outValue, int *outStatusCode = nullptr);
 
 #endif

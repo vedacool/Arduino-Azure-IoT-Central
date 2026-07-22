@@ -202,6 +202,8 @@ Everything above is about *this* device's own data and control. Sometimes you wa
 
 **This can't work as a push, and that's a deliberate Azure security boundary, not a limitation of this library.** A device's credentials only ever grant it access to its own telemetry and its own twin -- there's no MQTT mechanism for one device to subscribe to another's data stream. The only way to bridge them is to poll Azure's REST API on a timer.
 
+**A device can send its own data OR pull another device's data -- not both, at least not yet.** Real hardware testing found that keeping a persistent MQTT connection open *and* periodically opening a separate HTTPS connection for polling is a known-fragile combination on this board's Wi-Fi hardware (a real, independently-reported bug, not something specific to this library -- see DEVELOPMENT.md). So: if you register `onRemoteTelemetry()`, `begin()` automatically skips DPS/MQTT entirely for that device -- it only connects Wi-Fi and polls. Your device's own Connect credentials (`IOTC_ID_SCOPE`/`IOTC_DEVICE_ID`/`IOTC_DEVICE_KEY`) simply go unused in that case.
+
 ```cpp
 void onRemoteTemperature(float value) {
     if (value > 30.0f) tone(PIN_BUZZER, 1000);
@@ -211,11 +213,11 @@ void onRemoteTemperature(float value) {
 void setup() {
     AzureIoT.setRemoteAccess(IOTC_REMOTE_APP_SUBDOMAIN, IOTC_REMOTE_API_TOKEN); // call BEFORE begin()
     AzureIoT.onRemoteTelemetry("temperature", "arduino1", onRemoteTemperature);  // call BEFORE begin()
-    AzureIoT.begin(...);
+    AzureIoT.begin(...); // automatically runs in pull-only mode now (Wi-Fi + polling only)
 }
 
 void loop() {
-    AzureIoT.loop(); // also polls for the remote value now, on the interval below
+    AzureIoT.loop(); // polls for the remote value on the interval below
 }
 ```
 
@@ -227,7 +229,7 @@ A few things worth knowing:
 - **Fastest allowed: 1000ms**, set via `AzureIoT.setRemotePollInterval(ms)` (default 15000ms). This is a hard floor enforced in code, not just a suggestion -- go lower and it's silently clamped back up to 1000ms with a warning. The reason is different from every other tunable in this library: going too fast here doesn't just cost *this* device resources, it risks Azure's own **20 requests/second, per-application** rate limit -- shared across every caller of your app's API, not just this one device.
 - **This is polling, not push** -- there's an inherent delay equal to whatever interval you set. If you need an instant reaction the moment a threshold is crossed, an IoT Central Rule with a Power Automate/Logic Apps action is the better fit; this feature is for "check periodically," not "react immediately."
 - **Fixed cap of 4 remote watches**, lower than the 16 used for local properties, since each one costs a real network round-trip on every poll, not just a few bytes of RAM.
-- **Every poll is a brand-new HTTPS/TLS connection** -- the single heaviest thing this board does. Even at the 1000ms floor, this is genuinely new, less-tested territory compared to the rest of this library -- see DEVELOPMENT.md.
+- **If you call `publish()` while in pull-only mode, it warns and does nothing** -- there's no MQTT connection to send through. This isn't a bug to work around; it's the plain consequence of the send-or-pull tradeoff above.
 
 ## Troubleshooting
 

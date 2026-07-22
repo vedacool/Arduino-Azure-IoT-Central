@@ -119,6 +119,18 @@ public:
     // before delivering property patches) -- both matter, per the same
     // Microsoft guidance, and this single parameter threads it through to
     // both automatically.
+    //
+    // PULL-ONLY MODE: if onRemoteTelemetry() (see below) was called before
+    // this, begin() skips DPS/MQTT entirely -- this device only connects
+    // Wi-Fi and polls, it does NOT send its own telemetry or receive
+    // properties. idScope/deviceId/deviceKey are simply unused in that
+    // case (pass anything). A device can, for now, only ever SEND its own
+    // data OR PULL another device's data -- not both at once. This isn't
+    // an arbitrary restriction: real hardware testing found that running a
+    // persistent MQTT connection and a separate periodic HTTPS poll at the
+    // same time is a known-fragile combination on WiFiNINA hardware
+    // specifically (see DEVELOPMENT.md for the real, independently-
+    // reported bug this matches).
     void begin(const char *wifiSsid, const char *wifiPassword,
                const char *idScope, const char *deviceId, const char *deviceKey,
                const char *modelId = nullptr);

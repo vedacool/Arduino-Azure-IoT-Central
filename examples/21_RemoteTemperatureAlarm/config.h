@@ -17,7 +17,12 @@ static const char WIFI_SSID[]     = "<your-ssid>";
 static const char WIFI_PASSWORD[] = "<your-password>";
 
 // ---- Azure IoT Central device identity (THIS device's own connection) ----
-// From IoT Central: Devices > <device> > Connect
+// NOT ACTUALLY USED by this example -- onRemoteTelemetry() is registered in
+// the .ino before begin(), which puts this device in PULL-ONLY MODE (Wi-Fi
+// only, no DPS/MQTT -- see the .ino's header comment and AzureIoT.h's
+// begin() doc comment for why). Left as placeholders; begin() still
+// requires something be passed for these three, but their actual content
+// is ignored in this mode.
 static const char IOTC_ID_SCOPE[]    = "<ID Scope, e.g. 0ne00XXXXXX>";
 static const char IOTC_DEVICE_ID[]   = "<Device ID>";
 static const char IOTC_DEVICE_KEY[]  = "<Primary or computed device key, base64>";

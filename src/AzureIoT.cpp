@@ -62,6 +62,7 @@ static BoolPropertyReg s_boolProps[16];
 static size_t s_boolPropCount = 0;
 static unsigned long s_twinRequestId = 0;
 static bool s_watchdogEnabled = false; // set by enableWatchdog() -- gates every platformWatchdogPet() call
+static bool s_pullOnlyMode = false; // set by begin() if onRemoteTelemetry() was registered first -- see begin()'s doc comment
 
 // reportBoolProperty()'s retry buffer -- if MQTT isn't connected (or the
 // send otherwise fails) when reportBoolProperty() is called, the change is
@@ -621,6 +622,30 @@ void AzureIoTClass::begin(const char *wifiSsid, const char *wifiPassword,
                            const char *modelId) {
     strncpy(s_wifiSsid, wifiSsid, sizeof(s_wifiSsid) - 1);
     strncpy(s_wifiPassword, wifiPassword, sizeof(s_wifiPassword) - 1);
+
+    // PULL-ONLY MODE: if onRemoteTelemetry() was called before begin(), this
+    // device never connects its own identity to Azure at all -- no DPS, no
+    // MQTT. Found necessary after real hardware testing showed running a
+    // persistent MQTT connection AND a separate periodic HTTPS poll at the
+    // same time is a known-fragile combination on WiFiNINA (matches a real,
+    // independently-reported bug: a long-lived SSL connection crashing
+    // shortly after a second, short-lived SSL connection closes -- see
+    // DEVELOPMENT.md). Rather than accept that fragility, a device can (for
+    // now) only ever SEND its own telemetry/properties, or PULL another
+    // device's telemetry -- never both. idScope/deviceId/deviceKey are
+    // simply unused in this mode (this device never provisions an identity
+    // of its own) -- pass anything, even placeholder text; only wifiSsid/
+    // wifiPassword matter here.
+    if (s_remoteTelemetryCount > 0) {
+        s_pullOnlyMode = true;
+        Serial.println("AzureIoT: onRemoteTelemetry() was registered -- running in PULL-ONLY mode (Wi-Fi only, no DPS/MQTT). This device will not send its own telemetry or receive properties. See AzureIoT.h's begin() doc comment for why.");
+        if (s_boolPropCount > 0) {
+            Serial.println("AzureIoT: WARNING -- onBoolProperty() was also registered, but properties require MQTT, which pull-only mode doesn't use. Those registrations will never fire.");
+        }
+        connectWiFi();
+        return;
+    }
+
     strncpy(s_idScope, idScope, sizeof(s_idScope) - 1);
     strncpy(s_deviceIdInput, deviceId, sizeof(s_deviceIdInput) - 1);
     strncpy(s_deviceKey, deviceKey, sizeof(s_deviceKey) - 1);
@@ -697,6 +722,13 @@ void AzureIoTClass::loop() {
     if (WiFi.status() != WL_CONNECTED) {
         connectWiFi();
     }
+
+    if (s_pullOnlyMode) {
+        // No MQTT at all in this mode -- see begin()'s doc comment for why.
+        pollRemoteTelemetry();
+        return;
+    }
+
     ensureMqttConnected();
     s_mqttClient.loop();
     retryPendingReports(); // catch up on anything reportBoolProperty() couldn't send earlier
@@ -708,6 +740,11 @@ void AzureIoTClass::loop() {
 }
 
 void AzureIoTClass::publish(const char *key, float value) {
+    if (s_pullOnlyMode) {
+        Serial.println("AzureIoT.publish: this device is in pull-only mode (onRemoteTelemetry() was registered) -- there's no MQTT connection to send through. Ignored.");
+        return;
+    }
+
     // Overwrite if this key is already staged; otherwise add a new slot.
     for (size_t i = 0; i < s_stagedCount; i++) {
         if (strcmp(s_staged[i].key, key) == 0) {
@@ -830,9 +867,10 @@ static void pollRemoteTelemetry() {
 
     for (size_t i = 0; i < s_remoteTelemetryCount; i++) {
         float value;
+        int statusCode = 0;
         bool ok = azureiot_poll_remote_telemetry(s_remoteAppSubdomain, s_remoteApiToken,
                                                    s_remoteTelemetryRegs[i].remoteDeviceId,
-                                                   s_remoteTelemetryRegs[i].telemetryName, &value);
+                                                   s_remoteTelemetryRegs[i].telemetryName, &value, &statusCode);
         if (ok) {
             Serial.print("AzureIoT: remote telemetry '");
             Serial.print(s_remoteTelemetryRegs[i].telemetryName);
@@ -846,7 +884,17 @@ static void pollRemoteTelemetry() {
             Serial.print(s_remoteTelemetryRegs[i].telemetryName);
             Serial.print("' from device '");
             Serial.print(s_remoteTelemetryRegs[i].remoteDeviceId);
-            Serial.println("' -- check your API token/app subdomain, and that the remote device has actually published this telemetry name. Will retry next interval.");
+            Serial.print("' -- HTTP status ");
+            Serial.print(statusCode);
+            if (statusCode == -1) {
+                Serial.println(" (the HTTPS connection itself never completed -- a network/hardware-level failure, not Azure saying no. Check Wi-Fi signal and whether a second secure connection alongside the primary MQTT one is actually supported.)");
+            } else if (statusCode == 401 || statusCode == 403) {
+                Serial.println(" (likely a bad/expired API token -- check IOTC_REMOTE_API_TOKEN.)");
+            } else if (statusCode == 404) {
+                Serial.println(" (likely a wrong device ID or telemetry name, or that device has never published this telemetry.)");
+            } else {
+                Serial.println(" -- check your API token/app subdomain. Will retry next interval.");
+            }
         }
     }
 }

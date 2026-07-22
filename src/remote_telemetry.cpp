@@ -37,12 +37,15 @@ static bool extractJsonFloat(const char *json, const char *key, float *out) {
 
 bool azureiot_poll_remote_telemetry(const char *appSubdomain, const char *apiToken,
                                      const char *remoteDeviceId, const char *telemetryName,
-                                     float *outValue) {
+                                     float *outValue, int *outStatusCode) {
     // 128, not a tighter size: appSubdomain is user-supplied and this is
     // cheap to size generously -- checked below rather than assumed safe.
     char host[128];
     int hostLen = snprintf(host, sizeof(host), "%s.azureiotcentral.com", appSubdomain);
-    if (hostLen <= 0 || (size_t)hostLen >= sizeof(host)) return false;
+    if (hostLen <= 0 || (size_t)hostLen >= sizeof(host)) {
+        if (outStatusCode) *outStatusCode = -1;
+        return false;
+    }
 
     // 300: "/api/devices/" (13) + a device ID (Azure's own cap is 128) +
     // "/telemetry/" (11) + a telemetry name (generous headroom) +
@@ -50,7 +53,10 @@ bool azureiot_poll_remote_telemetry(const char *appSubdomain, const char *apiTok
     char path[300];
     int pathLen = snprintf(path, sizeof(path), "/api/devices/%s/telemetry/%s?api-version=2022-07-31",
                             remoteDeviceId, telemetryName);
-    if (pathLen <= 0 || (size_t)pathLen >= sizeof(path)) return false;
+    if (pathLen <= 0 || (size_t)pathLen >= sizeof(path)) {
+        if (outStatusCode) *outStatusCode = -1;
+        return false;
+    }
 
     // The response is always small -- a timestamp string plus one number --
     // 256 is generous, not tight.
@@ -58,6 +64,7 @@ bool azureiot_poll_remote_telemetry(const char *appSubdomain, const char *apiTok
     SecureWiFiClient client;
     int status = azureiot_http_request(client, host, "GET", path, apiToken, nullptr, 0,
                                         respBody, sizeof(respBody));
+    if (outStatusCode) *outStatusCode = status;
     if (status != 200) return false;
 
     return extractJsonFloat(respBody, "value", outValue);
