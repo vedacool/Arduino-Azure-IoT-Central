@@ -873,16 +873,25 @@ static void pollRemoteTelemetry() {
     for (size_t i = 0; i < s_remoteTelemetryCount; i++) {
         float value;
         int statusCode = 0;
+        char timestamp[32] = {0};
         bool ok = azureiot_poll_remote_telemetry(s_remoteAppSubdomain, s_remoteApiToken,
                                                    s_remoteTelemetryRegs[i].remoteDeviceId,
-                                                   s_remoteTelemetryRegs[i].telemetryName, &value, &statusCode);
+                                                   s_remoteTelemetryRegs[i].telemetryName, &value, &statusCode,
+                                                   timestamp, sizeof(timestamp));
         if (ok) {
             Serial.print("AzureIoT: remote telemetry '");
             Serial.print(s_remoteTelemetryRegs[i].telemetryName);
             Serial.print("' from device '");
             Serial.print(s_remoteTelemetryRegs[i].remoteDeviceId);
             Serial.print("' = ");
-            Serial.println(value);
+            Serial.print(value);
+            if (timestamp[0] != '\0') {
+                Serial.print(" (recorded by Azure at ");
+                Serial.print(timestamp);
+                Serial.println(" -- compare against your own current time to see how fresh this actually is)");
+            } else {
+                Serial.println(" (no timestamp in response -- can't confirm freshness this time)");
+            }
             s_remoteTelemetryRegs[i].callback(value);
         } else {
             Serial.print("AzureIoT: remote telemetry poll FAILED for '");

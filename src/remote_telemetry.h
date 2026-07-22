@@ -20,8 +20,19 @@
 // real hardware testing showed a plain true/false wasn't enough to tell
 // "the request failed at the network level" apart from "Azure responded
 // but said no."
+//
+// outTimestamp (optional, pass nullptr to ignore) is filled with Azure's own
+// ISO-8601 timestamp string for when the returned value was actually
+// recorded -- e.g. "2026-07-22T15:00:09.059Z". Added after real hardware
+// testing raised a fair question ("is this actually the latest value, or
+// something stale?") that a bare number couldn't answer -- comparing this
+// against your own device's current time is the real, checkable way to know
+// how fresh a given poll's value actually is, rather than guessing.
+// outTimestampCap is the size of that buffer -- checked, not assumed, same
+// as every fixed buffer elsewhere in this library.
 bool azureiot_poll_remote_telemetry(const char *appSubdomain, const char *apiToken,
                                      const char *remoteDeviceId, const char *telemetryName,
-                                     float *outValue, int *outStatusCode = nullptr);
+                                     float *outValue, int *outStatusCode = nullptr,
+                                     char *outTimestamp = nullptr, size_t outTimestampCap = 0);
 
 #endif

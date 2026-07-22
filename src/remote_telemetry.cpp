@@ -35,9 +35,31 @@ static bool extractJsonFloat(const char *json, const char *key, float *out) {
     return true;
 }
 
+// Finds `"key":"value"` (quoted, as the timestamp is) and copies value into
+// out. Same substring-search philosophy as extractJsonFloat() above and
+// dps_client.cpp's extractJsonString() -- not a general JSON parser.
+static bool extractJsonTimestamp(const char *json, char *out, size_t outCap) {
+    const char *p = strstr(json, "\"timestamp\"");
+    if (!p) return false;
+    p += strlen("\"timestamp\"");
+    p = strchr(p, ':');
+    if (!p) return false;
+    p++;
+    while (*p == ' ') p++;
+    if (*p != '"') return false;
+    p++;
+    const char *end = strchr(p, '"');
+    if (!end) return false;
+    size_t len = (size_t)(end - p);
+    if (len >= outCap) len = outCap - 1;
+    memcpy(out, p, len);
+    out[len] = '\0';
+    return true;
+}
+
 bool azureiot_poll_remote_telemetry(const char *appSubdomain, const char *apiToken,
                                      const char *remoteDeviceId, const char *telemetryName,
-                                     float *outValue, int *outStatusCode) {
+                                     float *outValue, int *outStatusCode, char *outTimestamp, size_t outTimestampCap) {
     // 128, not a tighter size: appSubdomain is user-supplied and this is
     // cheap to size generously -- checked below rather than assumed safe.
     char host[128];
@@ -66,6 +88,12 @@ bool azureiot_poll_remote_telemetry(const char *appSubdomain, const char *apiTok
                                         respBody, sizeof(respBody));
     if (outStatusCode) *outStatusCode = status;
     if (status != 200) return false;
+
+    if (outTimestamp && outTimestampCap > 0) {
+        if (!extractJsonTimestamp(respBody, outTimestamp, outTimestampCap)) {
+            outTimestamp[0] = '\0'; // couldn't find/parse it -- leave empty rather than stale/garbage data
+        }
+    }
 
     return extractJsonFloat(respBody, "value", outValue);
 }
