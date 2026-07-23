@@ -237,6 +237,29 @@ static bool refreshSasTokenIfNeeded() {
     return true;
 }
 
+// Proactively reconnect with a fresh SAS token shortly BEFORE the current one
+// expires, rather than waiting for Azure to drop the live MQTT connection at
+// expiry -- which otherwise guarantees a telemetry gap (server-side drop +
+// reconnect cooldown) once every token lifetime. Only acts while connected
+// and once a real clock is known. Forces a re-sign by clearing the cached
+// token and dropping the connection, so the ensureMqttConnected() call right
+// after this in loop() rebuilds both on the same iteration.
+static void refreshSasBeforeExpiry() {
+    if (!s_mqttClient.connected()) return;   // the reconnect path already re-signs
+    if (s_sasToken[0] == '\0') return;        // nothing signed yet
+    unsigned long now = platformGetUnixTime();
+    if (now < 1700000000UL) return;           // no real clock -- don't act on a bogus time
+    // Refresh well before expiry, scaled to the configured lifetime so a very
+    // short lifetime doesn't thrash: ~5 min for the 1h default; lifetime/4 for
+    // short lifetimes; never less than 30s.
+    unsigned long margin = s_sasTokenLifetimeSecs > 600UL ? 300UL : (s_sasTokenLifetimeSecs / 4);
+    if (margin < 30UL) margin = 30UL;
+    if (now + margin < s_sasTokenExpiry) return; // still comfortably valid
+    Serial.println("AzureIoT: SAS token nearing expiry -- reconnecting with a fresh token before Azure drops us.");
+    s_sasToken[0] = '\0';       // force refreshSasTokenIfNeeded() to mint a new one
+    s_mqttClient.disconnect();  // clean close; ensureMqttConnected() below reconnects
+}
+
 bool AzureIoTClass::ensureMqttConnected() {
     if (s_mqttClient.connected()) return true;
     if (millis() - s_lastMqttAttemptMillis < s_mqttReconnectCooldownMs) return false;
@@ -484,7 +507,18 @@ static void requestFullTwin() {
 static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int length) {
     if (s_boolPropCount == 0) return; // no sketch-registered properties to match against
 
-    char body[300];
+    // Sized per-arch: ESP32 matches the full 1024-byte MQTT buffer (ample
+    // RAM), megaAVR uses a smaller frame to stay safe on 6KB SRAM inside this
+    // PubSubClient callback. A twin larger than this still truncates (rare
+    // with a handful of bool properties, possible with many) -- the
+    // brace-matched desired-bounding below then just searches what fit. This
+    // raises the old flat 300-byte cap that could truncate a populated twin
+    // and miss a desired property flipped while the device was offline.
+#if defined(ARDUINO_ARCH_ESP32)
+    char body[1024];
+#else
+    char body[512];
+#endif
     if (length >= sizeof(body)) length = sizeof(body) - 1; // truncate rather than overflow
     memcpy(body, payload, length);
     body[length] = '\0';
@@ -588,14 +622,20 @@ void AzureIoTClass::flush() {
     size_t pos = 0;
     if (pos < cap - 1) payload[pos++] = '{';
     bool first = true;
+    // Record which staged slots actually made it into THIS payload, so we can
+    // clear them ONLY after a confirmed-successful publish. Bounded by
+    // s_stagedCount, which publish() never lets exceed the fixed cap of 16.
+    size_t consumed[16];
+    size_t consumedCount = 0;
     for (size_t i = 0; i < s_stagedCount; i++) {
         if (!s_staged[i].set) continue;
         if (!appendField(payload, sizeof(payload), &pos, first, s_staged[i].key, s_staged[i].value)) {
             break; // ran out of room -- publish what fit rather than nothing
         }
         first = false;
-        s_staged[i].set = false; // consumed
+        consumed[consumedCount++] = i; // NOT cleared yet -- only after publish succeeds
     }
+    if (consumedCount == 0) return; // nothing actually appended -- don't publish an empty "{}"
     // Bounds-checked, not unconditional -- appendField() only bounds itself
     // against the capacity it's given; it doesn't know a closing '}' and a
     // NUL still need to follow it. An unconditional write here could run
@@ -610,8 +650,14 @@ void AzureIoTClass::flush() {
     if (s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)pos)) {
         Serial.print("Published: ");
         Serial.println(payload);
+        // Clear ONLY the values we actually sent, and only now that the
+        // publish succeeded. On failure everything stays staged so the next
+        // flush retries the batch -- previously these were cleared while
+        // building the payload, so a failed publish() silently lost that
+        // telemetry with no retry (and could then publish an empty "{}").
+        for (size_t k = 0; k < consumedCount; k++) s_staged[consumed[k]].set = false;
     } else {
-        Serial.println("Publish failed.");
+        Serial.println("Publish failed -- keeping staged values for the next flush.");
     }
 }
 
@@ -783,6 +829,7 @@ void AzureIoTClass::loop() {
         return;
     }
 
+    refreshSasBeforeExpiry(); // swap in a fresh SAS token before Azure force-drops the connection at expiry
     ensureMqttConnected();
     s_mqttClient.loop();
     retryPendingReports(); // catch up on anything reportBoolProperty() couldn't send earlier

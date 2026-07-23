@@ -79,17 +79,26 @@ int azureiot_http_request(SecureWiFiClient &client, const char *host,
     char *sp = strchr(lineBuf, ' ');
     if (sp) statusCode = atoi(sp + 1);
 
-    // Skip headers until the blank line.
+    // Skip headers until the blank line, noting Transfer-Encoding: chunked if
+    // the server sends it. This client does NOT de-chunk; Azure DPS/IoT
+    // Central responses observed in practice are small and not chunk-encoded.
+    // If that ever changes, a raw read leaves chunk-size markers interleaved
+    // in the body and the caller's JSON extraction silently returns
+    // "not found" -- so surface it as an explicit diagnostic rather than a
+    // mystery failure.
+    bool chunked = false;
     while (true) {
         int len = readLine(client, lineBuf, sizeof(lineBuf), 5000UL);
         if (len <= 0) break; // blank line (end of headers) or timeout/EOF
+        if (strstr(lineBuf, "Transfer-Encoding:") && strstr(lineBuf, "chunked")) {
+            chunked = true;
+        }
+    }
+    if (chunked) {
+        Serial.println("AzureIoT: WARNING -- server sent a CHUNKED HTTP response, which this lightweight client does not de-chunk. The body will contain chunk-size markers and JSON parsing will likely fail. Please report this (endpoint + firmware version) so de-chunking can be added.");
     }
 
-    // Read remaining body (chunked or not -- responses observed in practice
-    // for both callers of this function are small and not chunk-encoded, so
-    // a straight read is fine; if that ever changes, the caller's own JSON
-    // extraction will simply fail to find its fields rather than misbehaving
-    // silently).
+    // Read remaining body (see the chunked note above).
     size_t n = 0;
     unsigned long bodyStart = millis();
     while ((client.connected() || client.available()) && n < respBodyCap - 1 &&
