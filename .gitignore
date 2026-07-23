@@ -2,3 +2,11 @@
 *.elf
 *.hex
 build/
+
+# Editor / tooling
+.claude/
+
+# Dev-only files -- kept local, excluded from the published library
+DEVELOPMENT.md
+test/
+.audit/

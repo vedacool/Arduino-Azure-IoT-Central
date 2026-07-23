@@ -1,0 +1,37 @@
+#######################################
+# Syntax Coloring Map for AzureIoT
+#######################################
+
+#######################################
+# Datatypes / classes (KEYWORD1)
+#######################################
+
+AzureIoT	KEYWORD1
+AzureIoTClass	KEYWORD1
+BoolPropertyCallback	KEYWORD1
+RemoteTelemetryCallback	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+loop	KEYWORD2
+publish	KEYWORD2
+sendNow	KEYWORD2
+publishText	KEYWORD2
+onBoolProperty	KEYWORD2
+reportBoolProperty	KEYWORD2
+setDpsGlobalHost	KEYWORD2
+setSasTokenLifetime	KEYWORD2
+setSendInterval	KEYWORD2
+setWifiConnectTimeout	KEYWORD2
+setMqttReconnectCooldown	KEYWORD2
+setWifiHardReinitAfter	KEYWORD2
+setWifiForceResetAfter	KEYWORD2
+setProvisionRetryInitial	KEYWORD2
+setProvisionRetryMax	KEYWORD2
+enableWatchdog	KEYWORD2
+setRemoteAccess	KEYWORD2
+onRemoteTelemetry	KEYWORD2
+setRemotePollInterval	KEYWORD2
