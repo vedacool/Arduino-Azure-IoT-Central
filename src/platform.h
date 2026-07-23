@@ -105,7 +105,20 @@ inline void platformWatchdogEnable() {
 
 inline void platformWatchdogPet() {
 #if defined(ARDUINO_ARCH_ESP32)
-    esp_task_wdt_reset();
+    // Only feed the TWDT if THIS task is actually subscribed. arduino-esp32
+    // 3.x initializes a Task Watchdog at boot even when we never called
+    // enableWatchdog() (i.e. esp_task_wdt_add()), so an UNCONDITIONAL reset
+    // here logs "E task_wdt: esp_task_wdt_reset(): task not found" on every
+    // pet during any http_client TLS read (DPS provisioning, remote-telemetry
+    // polling) -- harmless (ESP-IDF just ignores the call) but alarming log
+    // spam, seen on real ESP32 hardware. esp_task_wdt_status() returns ESP_OK
+    // only when the running task is subscribed; otherwise (unsubscribed, or
+    // TWDT not initialized) this becomes a genuine no-op -- which is exactly
+    // what every platformWatchdogPet() call site already assumes (see the
+    // "safe no-op if the watchdog was never enabled" comment in
+    // http_client.cpp). On megaAVR that assumption was already true (a raw
+    // WDR is harmless if the WDT is off); this makes it true on ESP32 too.
+    if (esp_task_wdt_status(NULL) == ESP_OK) esp_task_wdt_reset();
 #else
     // Raw WDR instruction, deliberately NOT avr-libc's wdt_reset() -- same
     // reasoning as platformWatchdogEnable() above: matches megaTinyCore/
