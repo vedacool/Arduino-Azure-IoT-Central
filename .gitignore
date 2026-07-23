@@ -7,6 +7,6 @@ build/
 .claude/
 
 # Dev-only files -- kept local, excluded from the published library
-DEVELOPMENT.md
+# (DEVELOPMENT.md stays tracked: README links to it, so it must ship)
 test/
 .audit/
