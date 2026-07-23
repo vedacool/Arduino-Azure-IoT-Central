@@ -141,35 +141,58 @@ static void connectWiFi() {
                 break;
             }
         }
-        if (WiFi.status() == WL_CONNECTED) break;
-        if (restartAttempt) continue; // go straight back to a fresh WiFi.begin()
+        if (WiFi.status() != WL_CONNECTED) {
+            if (restartAttempt) continue; // go straight back to a fresh WiFi.begin()
+            Serial.println();
+            Serial.println("WiFi connect timed out -- check the SSID/password passed to AzureIoT.begin(). Retrying...");
+            continue;
+        }
 
         Serial.println();
-        Serial.println("WiFi connect timed out -- check the SSID/password passed to AzureIoT.begin(). Retrying...");
-    }
-    Serial.println();
-    Serial.print("WiFi connected, IP: ");
-    Serial.println(WiFi.localIP());
+        Serial.print("WiFi connected, IP: ");
+        Serial.println(WiFi.localIP());
 
-    // Wait for a real clock -- SAS tokens are time-based and Azure rejects
-    // tokens whose expiry looks wrong, so we must not sign anything before
-    // this. WiFiNINA modules sync automatically once connected; ESP32 needs
-    // an explicit NTP kick (platformBeginTimeSync() below) first.
-    platformBeginTimeSync();
-    Serial.print("Waiting for network time");
-    // Deliberately NOT petting the watchdog in this loop, unlike the
-    // Wi-Fi-connect wait above: that loop has its own escalation tiers
-    // (reinit, then reset) if Wi-Fi never comes up, but THIS loop has no
-    // timeout or fallback of its own -- if NTP is genuinely unreachable
-    // (Wi-Fi connected, but no route to the internet), it would otherwise
-    // hang forever with zero protection. Leaving it un-petted means the
-    // watchdog (if enabled) is the one thing that can still catch and
-    // recover from that specific case, rather than being fed through it.
-    while (platformGetUnixTime() < 1700000000UL) { // sanity floor: after Nov 2023
-        Serial.print(".");
-        delay(500);
+        // Wait for a real clock -- SAS tokens are time-based and Azure rejects
+        // tokens whose expiry looks wrong, so we must not sign anything before
+        // this. WiFiNINA modules sync automatically once connected; ESP32 needs
+        // an explicit NTP kick (platformBeginTimeSync() below) first.
+        platformBeginTimeSync();
+        Serial.print("Waiting for network time");
+        // If Wi-Fi is associated but real time never arrives, that's almost
+        // always an AP with no working internet route (captive portal, ISP
+        // outage, bad gateway). This wait used to have no timeout and could
+        // hang forever -- and because begin() blocks here, the sketch never
+        // reached enableWatchdog(), so on first boot there was no watchdog to
+        // catch it either (a real dead-end: power-cycling just re-hangs).
+        // Escalate on the SAME cumulative downSince thresholds as the
+        // association loop above: a one-time Wi-Fi radio reinit + full
+        // re-association at the reinit threshold, then a full device reset at
+        // the reset threshold. Pet the watchdog while waiting so an enabled
+        // watchdog doesn't fire mid-wait during a merely-slow (but working)
+        // time sync.
+        bool gotTime = true;
+        while (platformGetUnixTime() < 1700000000UL) { // sanity floor: after Nov 2023
+            Serial.print(".");
+            delay(500);
+            if (s_watchdogEnabled) platformWatchdogPet();
+            if (millis() - downSince > s_wifiForceResetAfterMs) {
+                Serial.println();
+                Serial.println("Still no network time after the reset threshold -- forcing a full device reset.");
+                forceReset();
+            }
+            if (!didHardReinit && millis() - downSince > s_wifiHardReinitAfterMs) {
+                Serial.println();
+                Serial.println("Still no network time after the reinit threshold -- reinitializing Wi-Fi and re-associating...");
+                platformWifiHardReinit();
+                didHardReinit = true;
+                gotTime = false;
+                break;
+            }
+        }
+        if (!gotTime) continue; // radio reinitialized -- re-associate from the top
+        Serial.println();
+        break; // connected AND have a real clock -- done
     }
-    Serial.println();
 }
 
 static bool provisionDevice() {
@@ -482,10 +505,36 @@ static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int leng
 
     const char *searchIn = body;
     if (isTwinRes) {
-        const char *desired = strstr(body, "\"desired\"");
+        char *desired = strstr(body, "\"desired\"");
         if (!desired) {
             Serial.println("AzureIoT: (twin/res message has no 'desired' section -- likely just the ack for our own reported-property push, ignoring)");
             return;
+        }
+        // Bound the search to the "desired" object ONLY. The twin GET response
+        // also carries a "reported" section after it, and our substring-based
+        // extractors would otherwise match a property that appears solely in
+        // "reported" (e.g. one this device reported itself via
+        // reportBoolProperty, that the cloud never set as desired) -- firing
+        // the callback spuriously on every reconnect and acking it with the
+        // desired section's $version. Brace-match from desired's opening '{'
+        // to its matching '}', skipping over quoted strings so a '{'/'}' inside
+        // a string value can't miscount, then NUL-terminate right after it.
+        char *open = strchr(desired, '{');
+        if (open) {
+            int depth = 0;
+            bool inStr = false;
+            for (char *p = open; *p; p++) {
+                if (inStr) {
+                    if (*p == '\\' && p[1]) { p++; continue; } // skip escaped char
+                    if (*p == '"') inStr = false;
+                } else if (*p == '"') {
+                    inStr = true;
+                } else if (*p == '{') {
+                    depth++;
+                } else if (*p == '}') {
+                    if (--depth == 0) { p[1] = '\0'; break; }
+                }
+            }
         }
         searchIn = desired;
     }
