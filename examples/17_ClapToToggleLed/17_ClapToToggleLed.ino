@@ -23,7 +23,7 @@ const int PIN_LED = 2;   // ESP32: onboard LED. GPIO 7 is a flash pin on ESP32 -
 #else
 const int PIN_LED = 7;   // Uno WiFi Rev2 + Grove Base Shield: Grove D7
 #endif
-const int CLAP_THRESHOLD = 100; // raw ADC deviation from quiet baseline -- adjust per environment
+const int CLAP_THRESHOLD = 100; // absolute averaged ADC level that counts as a clap (NOT a deviation from a baseline -- the code compares the raw 32-sample average directly). If your module's quiet level already sits near/above this, raise it; adjust per environment.
 const unsigned long CLAP_COOLDOWN_MS = 500; // ignore further spikes right after one, so an echo doesn't double-toggle
 
 bool ledState = false;

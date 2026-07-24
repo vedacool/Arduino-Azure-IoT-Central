@@ -44,6 +44,9 @@ static int8_t b64_val(char c) {
 }
 
 size_t azureiot_base64_dec_len(const char *in, size_t in_len) {
+    if (in_len < 4) return 0; // a valid base64 block is >=4 chars; guards the
+                              // (in_len/4)*3 - pad subtraction below from
+                              // underflowing to SIZE_MAX on a too-short input
     size_t pad = 0;
     if (in_len >= 1 && in[in_len-1] == '=') pad++;
     if (in_len >= 2 && in[in_len-2] == '=') pad++;

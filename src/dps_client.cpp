@@ -12,7 +12,8 @@ static const char DPS_API_VERSION[] = "2019-03-31";
 // ArduinoJson for three fields.
 static bool extractJsonString(const char *json, const char *key, char *out, size_t outCap) {
     char pattern[40];
-    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    int pn = snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    if (pn < 0 || (size_t)pn >= sizeof(pattern)) return false; // key too long to match safely -- don't strstr a truncated pattern
     const char *p = strstr(json, pattern);
     if (!p) return false;
     p += strlen(pattern);
@@ -76,13 +77,17 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
         return false;
     }
 
-    char operationId[80] = {0};
+    char operationId[128] = {0}; // 128 (not 80): generous headroom so a longer-than-expected operationId isn't silently truncated (which would make every poll query a non-existent operation)
     if (!extractJsonString(respBody, "operationId", operationId, sizeof(operationId))) {
         return false;
     }
 
-    // Poll operation status until "assigned" (or give up after ~10 tries).
-    for (int attempt = 0; attempt < 10; attempt++) {
+    // Poll operation status until "assigned". ~30 tries x 2s = ~60s budget
+    // (was 10 / ~20s): first-time registration or a busy DPS endpoint can take
+    // longer than 20s to assign, and giving up early just makes begin() restart
+    // provisioning from scratch. (This library doesn't parse the Retry-After
+    // header -- http_client discards headers -- so the interval is a fixed 2s.)
+    for (int attempt = 0; attempt < 30; attempt++) {
         delay(2000); // DPS typically asks for ~2s between polls (Retry-After)
 
         // Reuse `path` (the register path isn't needed once the PUT above

@@ -49,16 +49,25 @@ static unsigned long s_sasTokenExpiry = 0;
 static unsigned long s_lastFlushMillis = 0;
 static unsigned long s_lastMqttAttemptMillis = 0;
 
+// Fixed capacities for the three no-heap registration tables below (all 16
+// today). Named so an array's size and its bound-check can't silently diverge
+// -- the drop-warning message text still says "16", which is harmless to leave
+// in sync by hand if this ever changes, unlike an array/guard mismatch (which
+// would overflow).
+static const size_t AZ_MAX_STAGED     = 16; // distinct telemetry keys staged by publish()
+static const size_t AZ_MAX_BOOL_PROPS = 16; // writable bool properties via onBoolProperty()
+static const size_t AZ_MAX_PENDING    = 16; // pending reported-property retries
+
 // Staged telemetry -- publish() writes here, flush() reads it and clears it.
 struct StagedValue { const char *key; float value; bool set; };
-static StagedValue s_staged[16];
+static StagedValue s_staged[AZ_MAX_STAGED];
 static size_t s_stagedCount = 0;
 
 // Writable boolean properties -- onBoolProperty() registers here; the MQTT
 // message callback (see mqttMessageCallback() below) matches incoming twin
 // data against this table by name and invokes the matching callback.
 struct BoolPropertyReg { const char *name; AzureIoTClass::BoolPropertyCallback callback; };
-static BoolPropertyReg s_boolProps[16];
+static BoolPropertyReg s_boolProps[AZ_MAX_BOOL_PROPS];
 static size_t s_boolPropCount = 0;
 static unsigned long s_twinRequestId = 0;
 static bool s_watchdogEnabled = false; // set by enableWatchdog() -- gates every platformWatchdogPet() call
@@ -77,7 +86,7 @@ static bool s_pullOnlyMode = false; // set by begin() if onRemoteTelemetry() was
 // onBoolProperty() registration for the same name -- decoupled on purpose,
 // matching how publish()'s keys are independent of anything else.
 struct PendingReport { const char *name; bool value; bool pending; };
-static PendingReport s_pendingReports[16];
+static PendingReport s_pendingReports[AZ_MAX_PENDING];
 static size_t s_pendingReportCount = 0;
 
 // Remote-telemetry polling (reading ANOTHER device's telemetry via the IoT
@@ -366,6 +375,13 @@ static int formatFloat2dp(char *buf, size_t bufCap, float value) {
     }
     bool negative = value < 0.0f;
     float absValue = negative ? -value : value;
+    // (absValue * 100) must fit in a 32-bit long for the fixed-point rounding
+    // below; above ~2.1e7 it overflows to garbage/negative. Beyond that, drop
+    // the two decimals and print just the integer part (a 32-bit float has no
+    // sub-integer precision left at that magnitude anyway).
+    if (absValue > 21474836.0f) {
+        return snprintf(buf, bufCap, "%s%ld.00", negative ? "-" : "", (long)absValue);
+    }
     long scaled = (long)(absValue * 100.0f + 0.5f); // round to the nearest 0.01
     if (scaled == 0) negative = false; // avoid printing "-0.00" for tiny negatives that round to zero
     long intPart = scaled / 100;
@@ -424,7 +440,8 @@ static void appendJsonEscaped(char *buf, size_t bufCap, size_t *pos, const char 
 // receives.
 static bool extractJsonBool(const char *json, const char *key, bool *out) {
     char pattern[40];
-    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    int pn = snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    if (pn < 0 || (size_t)pn >= sizeof(pattern)) return false; // key too long to match safely -- don't strstr a truncated pattern
     const char *p = strstr(json, pattern);
     if (!p) return false;
     p += strlen(pattern);
@@ -440,7 +457,8 @@ static bool extractJsonBool(const char *json, const char *key, bool *out) {
 // Same idea, for an unquoted JSON integer (used for twin "$version").
 static bool extractJsonNumber(const char *json, const char *key, unsigned long *out) {
     char pattern[40];
-    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    int pn = snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    if (pn < 0 || (size_t)pn >= sizeof(pattern)) return false; // key too long to match safely -- don't strstr a truncated pattern
     const char *p = strstr(json, pattern);
     if (!p) return false;
     p += strlen(pattern);
@@ -643,7 +661,7 @@ void AzureIoTClass::flush() {
     // Record which staged slots actually made it into THIS payload, so we can
     // clear them ONLY after a confirmed-successful publish. Bounded by
     // s_stagedCount, which publish() never lets exceed the fixed cap of 16.
-    size_t consumed[16];
+    size_t consumed[AZ_MAX_STAGED];
     size_t consumedCount = 0;
     for (size_t i = 0; i < s_stagedCount; i++) {
         if (!s_staged[i].set) continue;
@@ -872,7 +890,7 @@ void AzureIoTClass::publish(const char *key, float value) {
             return;
         }
     }
-    if (s_stagedCount < 16) {
+    if (s_stagedCount < AZ_MAX_STAGED) {
         s_staged[s_stagedCount].key = key;
         s_staged[s_stagedCount].value = value;
         s_staged[s_stagedCount].set = true;
@@ -887,7 +905,7 @@ void AzureIoTClass::sendNow() {
 }
 
 void AzureIoTClass::onBoolProperty(const char *name, BoolPropertyCallback callback) {
-    if (s_boolPropCount < 16) {
+    if (s_boolPropCount < AZ_MAX_BOOL_PROPS) {
         s_boolProps[s_boolPropCount].name = name;
         s_boolProps[s_boolPropCount].callback = callback;
         s_boolPropCount++;
@@ -1057,7 +1075,7 @@ void AzureIoTClass::reportBoolProperty(const char *name, bool value) {
         }
     }
     if (!found) {
-        if (s_pendingReportCount >= 16) {
+        if (s_pendingReportCount >= AZ_MAX_PENDING) {
             Serial.println("AzureIoT.reportBoolProperty: too many distinct property names pending (max 16) -- dropped.");
             return;
         }

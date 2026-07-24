@@ -12,7 +12,8 @@
 // own documentation, not assumed).
 static bool extractJsonFloat(const char *json, const char *key, float *out) {
     char pattern[24];
-    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    int pn = snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    if (pn < 0 || (size_t)pn >= sizeof(pattern)) return false; // key too long to match safely -- don't strstr a truncated pattern
     const char *p = strstr(json, pattern);
     if (!p) return false;
     p += strlen(pattern);

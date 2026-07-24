@@ -46,15 +46,23 @@ const int PIN_BUZZER = 4;   // ESP32: safe GPIO. GPIO 6 is a flash pin on ESP32 
 const int PIN_BUZZER = 6;   // Uno WiFi Rev2 + Grove Base Shield: Grove D6
 #endif
 const char *REMOTE_DEVICE_ID = "arduino1"; // change this to the device you want to watch
-const float ALARM_THRESHOLD_C = 30.0f;
+const float ALARM_ON_C  = 30.0f; // buzzer turns ON above this...
+const float ALARM_OFF_C = 29.0f; // ...and OFF below this. The dead band between
+                                 // the two stops a value hovering around 30 from
+                                 // chattering the buzzer on/off between polls --
+                                 // the same hysteresis idea as examples 18 and 19.
+
+bool alarmOn = false;
 
 void onRemoteTemperature(float value) {
     Serial.print("Remote temperature: ");
     Serial.println(value);
 
-    if (value > ALARM_THRESHOLD_C) {
+    if (!alarmOn && value > ALARM_ON_C) {
+        alarmOn = true;
         tone(PIN_BUZZER, 1000);
-    } else {
+    } else if (alarmOn && value < ALARM_OFF_C) {
+        alarmOn = false;
         noTone(PIN_BUZZER);
     }
 }
