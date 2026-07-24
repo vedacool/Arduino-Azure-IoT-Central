@@ -9,7 +9,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_TOUCH = 3;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_TOUCH = 15;  // ESP32: GPIO 3 is UART0 RX (Serial) -- would conflict; use GPIO 15
+#else
+const int PIN_TOUCH = 3;   // Uno WiFi Rev2 + Grove Base Shield: Grove D3
+#endif
 
 void setup() {
     Serial.begin(115200);

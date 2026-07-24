@@ -18,7 +18,11 @@
 #include "config.h"
 
 const int PIN_SOUND = A2;
-const int PIN_LED = 7;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_LED = 2;   // ESP32: onboard LED. GPIO 7 is a flash pin on ESP32 -- never usable
+#else
+const int PIN_LED = 7;   // Uno WiFi Rev2 + Grove Base Shield: Grove D7
+#endif
 const int CLAP_THRESHOLD = 100; // raw ADC deviation from quiet baseline -- adjust per environment
 const unsigned long CLAP_COOLDOWN_MS = 500; // ignore further spikes right after one, so an echo doesn't double-toggle
 

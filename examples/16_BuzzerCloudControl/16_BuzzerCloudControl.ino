@@ -13,7 +13,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_BUZZER = 6;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_BUZZER = 4;   // ESP32: safe GPIO. GPIO 6 is a flash pin on ESP32 -- never usable
+#else
+const int PIN_BUZZER = 6;   // Uno WiFi Rev2 + Grove Base Shield: Grove D6
+#endif
 
 void onBuzzerOn(bool on) {
     if (on) {

@@ -19,7 +19,11 @@
 #include "config.h"
 
 const int PIN_LIGHT = A4;
-const int PIN_LED = 7;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_LED = 2;   // ESP32: onboard LED. GPIO 7 is a flash pin on ESP32 -- never usable
+#else
+const int PIN_LED = 7;   // Uno WiFi Rev2 + Grove Base Shield: Grove D7
+#endif
 // Two thresholds, not one -- a single threshold would flicker the LED
 // rapidly if the light level naturally hovers right at the boundary (ADC
 // noise, a cloud passing overhead at dusk). Turning on requires dropping

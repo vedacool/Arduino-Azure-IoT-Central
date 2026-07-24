@@ -21,7 +21,11 @@
 #include "config.h"
 
 const int PIN_BUTTON = 4;
-const int PIN_LED = 7;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_LED = 2;   // ESP32: onboard LED. GPIO 7 is a flash pin on ESP32 -- never usable
+#else
+const int PIN_LED = 7;   // Uno WiFi Rev2 + Grove Base Shield: Grove D7
+#endif
 const unsigned long DEBOUNCE_MS = 50; // ignore button-state flicker right after a change
 
 bool ledState = false;

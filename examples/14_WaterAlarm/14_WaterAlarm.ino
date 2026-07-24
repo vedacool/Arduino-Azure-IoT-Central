@@ -12,8 +12,13 @@
 #include "config.h"
 
 const int PIN_WATER = 5;
-const int PIN_BUZZER = 6;
-const int PIN_LED = 7;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_BUZZER = 4;   // ESP32: GPIO 6 is a flash pin on ESP32 -- never usable
+const int PIN_LED    = 2;   // ESP32: onboard LED. GPIO 7 is a flash pin on ESP32
+#else
+const int PIN_BUZZER = 6;   // Uno WiFi Rev2 + Grove Base Shield: Grove D6
+const int PIN_LED    = 7;   // Uno WiFi Rev2 + Grove Base Shield: Grove D7
+#endif
 
 void setup() {
     Serial.begin(115200);

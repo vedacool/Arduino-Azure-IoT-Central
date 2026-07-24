@@ -43,7 +43,10 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
         return false;
     }
 
-    char path[200];
+    // 260 (not 200): this buffer is reused for the longer poll path in the
+    // loop below, once the register path is no longer needed -- avoids a
+    // second 260-byte stack buffer on the tight 6KB megaAVR provisioning frame.
+    char path[260];
     snprintf(path, sizeof(path), "/%s/registrations/%s/register?api-version=%s",
              idScope, deviceId, DPS_API_VERSION);
 
@@ -82,13 +85,14 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
     for (int attempt = 0; attempt < 10; attempt++) {
         delay(2000); // DPS typically asks for ~2s between polls (Retry-After)
 
-        char pollPath[260];
-        snprintf(pollPath, sizeof(pollPath),
+        // Reuse `path` (the register path isn't needed once the PUT above
+        // returned) rather than a second 260-byte stack buffer here.
+        snprintf(path, sizeof(path),
                  "/%s/registrations/%s/operations/%s?api-version=%s",
                  idScope, deviceId, operationId, DPS_API_VERSION);
 
         SecureWiFiClient pollClient;
-        int pollStatus = azureiot_http_request(pollClient, dpsGlobalHost, "GET", pollPath, sasToken, nullptr, 0,
+        int pollStatus = azureiot_http_request(pollClient, dpsGlobalHost, "GET", path, sasToken, nullptr, 0,
                                       respBody, sizeof(respBody));
         if (pollStatus != 200 && pollStatus != 202) continue;
 

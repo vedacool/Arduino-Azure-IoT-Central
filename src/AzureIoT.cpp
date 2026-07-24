@@ -260,50 +260,12 @@ static void refreshSasBeforeExpiry() {
     s_mqttClient.disconnect();  // clean close; ensureMqttConnected() below reconnects
 }
 
-bool AzureIoTClass::ensureMqttConnected() {
-    if (s_mqttClient.connected()) return true;
-    if (millis() - s_lastMqttAttemptMillis < s_mqttReconnectCooldownMs) return false;
-    s_lastMqttAttemptMillis = millis();
-
-    if (!refreshSasTokenIfNeeded()) return false;
-
-    s_mqttClient.setServer(s_iotHubHost, 8883);
-    // NOTE: setBufferSize() is called ONCE in begin(), not here. PubSubClient's
-    // setBufferSize() does a heap malloc()/realloc() -- calling it on every
-    // reconnect (which will happen periodically over weeks of normal Wi-Fi
-    // blips) would mean needless repeated heap churn on a 6KB-RAM board for
-    // no benefit, since the size never changes.
-
-    // 700, not 220: with a model-id appended, worst case is
-    // s_iotHubHost (127) + s_deviceId (63) + the fixed "&model-id=" text +
-    // a fully percent-encoded 128-byte model ID (every character encoded,
-    // 3x expansion -- DTMI strings only ever need ':'/';' escaped in
-    // practice, but sized for the true worst case rather than the typical
-    // one, same reasoning as every other buffer fix this session).
-    char username[700];
-    int usernameLen;
-    if (s_modelId[0] != '\0') {
-        char modelIdEnc[400]; // 128 * 3 + margin
-        size_t encLen = azureiot_url_encode(s_modelId, modelIdEnc, sizeof(modelIdEnc));
-        if (encLen >= sizeof(modelIdEnc) - 1) {
-            // Can't happen with s_modelId capped at 128 chars against a
-            // 400-byte buffer (128*3=384 worst case) -- but checked anyway,
-            // consistent with every other buffer in this file, rather than
-            // assumed safe because the sizes happen to work out today.
-            Serial.println("AzureIoT: internal error encoding model ID -- aborting connect.");
-            return false;
-        }
-        usernameLen = snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12&model-id=%s",
-                                s_iotHubHost, s_deviceId, modelIdEnc);
-    } else {
-        usernameLen = snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12",
-                                s_iotHubHost, s_deviceId);
-    }
-    if (usernameLen <= 0 || (size_t)usernameLen >= sizeof(username)) {
-        Serial.println("AzureIoT: internal error building MQTT username -- aborting connect.");
-        return false;
-    }
-
+// Connects MQTT with the given username and, if any bool properties are
+// registered, subscribes to the twin topics + requests the full twin. Split
+// out of ensureMqttConnected() so the large worst-case model-id username
+// buffer only lives on the stack in the rare model-id branch, not on every
+// reconnect -- keeps the common-path frame small on the 6KB megaAVR.
+static bool mqttConnectWithUsername(const char *username) {
     Serial.print("Connecting to MQTT as ");
     Serial.println(s_deviceId);
     if (s_mqttClient.connect(s_deviceId, username, s_sasToken)) {
@@ -328,6 +290,62 @@ bool AzureIoTClass::ensureMqttConnected() {
     Serial.print("MQTT connect failed, rc=");
     Serial.println(s_mqttClient.state());
     return false;
+}
+
+bool AzureIoTClass::ensureMqttConnected() {
+    if (s_mqttClient.connected()) return true;
+    if (millis() - s_lastMqttAttemptMillis < s_mqttReconnectCooldownMs) return false;
+    s_lastMqttAttemptMillis = millis();
+
+    if (!refreshSasTokenIfNeeded()) return false;
+
+    s_mqttClient.setServer(s_iotHubHost, 8883);
+    // NOTE: setBufferSize() is called ONCE in begin(), not here. PubSubClient's
+    // setBufferSize() does a heap malloc()/realloc() -- calling it on every
+    // reconnect (which will happen periodically over weeks of normal Wi-Fi
+    // blips) would mean needless repeated heap churn on a 6KB-RAM board for
+    // no benefit, since the size never changes.
+
+    // Build the MQTT username and connect. The username buffer is sized to the
+    // branch actually taken, so the common (no-model-id) path -- which every
+    // reconnect hits -- keeps only a small frame on the 6KB megaAVR, while the
+    // rare model-id path gets the large worst-case buffer on the stack ONLY
+    // when a model ID is actually set. (Previously a single unconditional
+    // username[700] was paid on every reconnect.)
+    if (s_modelId[0] != '\0') {
+        // Worst case: s_iotHubHost (127) + s_deviceId (63) + "&model-id=" +
+        // a fully percent-encoded 128-byte model ID (3x expansion = 384) +
+        // the fixed api-version text. 700 covers it with margin.
+        char modelIdEnc[400]; // 128 * 3 + margin
+        size_t encLen = azureiot_url_encode(s_modelId, modelIdEnc, sizeof(modelIdEnc));
+        if (encLen >= sizeof(modelIdEnc) - 1) {
+            // Can't happen with s_modelId capped at 128 chars against a
+            // 400-byte buffer (128*3=384 worst case) -- but checked anyway,
+            // consistent with every other buffer in this file.
+            Serial.println("AzureIoT: internal error encoding model ID -- aborting connect.");
+            return false;
+        }
+        char username[700];
+        int usernameLen = snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12&model-id=%s",
+                                    s_iotHubHost, s_deviceId, modelIdEnc);
+        if (usernameLen <= 0 || (size_t)usernameLen >= sizeof(username)) {
+            Serial.println("AzureIoT: internal error building MQTT username -- aborting connect.");
+            return false;
+        }
+        return mqttConnectWithUsername(username);
+    } else {
+        // No model ID (the common case): just s_iotHubHost (127) + '/' +
+        // s_deviceId (63) + "/?api-version=2021-04-12" (24) = ~215. 240 gives
+        // real margin without the model-id path's bulk.
+        char username[240];
+        int usernameLen = snprintf(username, sizeof(username), "%s/%s/?api-version=2021-04-12",
+                                    s_iotHubHost, s_deviceId);
+        if (usernameLen <= 0 || (size_t)usernameLen >= sizeof(username)) {
+            Serial.println("AzureIoT: internal error building MQTT username -- aborting connect.");
+            return false;
+        }
+        return mqttConnectWithUsername(username);
+    }
 }
 
 // Formats `value` to 2 decimal places into buf, using ONLY integer
