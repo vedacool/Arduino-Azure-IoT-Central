@@ -11,8 +11,12 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-#define ROTARY_ANGLE_SENSOR A1
-#define LED_PIN 3 // must be a PWM-capable pin for analogWrite() to work
+#define ROTARY_ANGLE_SENSOR A1 // on ESP32, use an ADC1 pin (GPIO 32-39) and re-tune the /1023 math for the 12-bit ADC -- see README's ESP32 note
+#if defined(ARDUINO_ARCH_ESP32)
+#define LED_PIN 2 // ESP32: GPIO 3 is the Serial RX pin -- never drive it. GPIO 2 (onboard LED) is PWM-capable via LEDC.
+#else
+#define LED_PIN 3 // Uno WiFi Rev2: a PWM-capable pin (analogWrite)
+#endif
 #define ADC_REF 5
 #define FULL_ANGLE 300
 #define VCC_GROVE 5

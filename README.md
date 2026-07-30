@@ -4,18 +4,21 @@ An Arduino library that connects a Uno WiFi Rev2 **or an ESP32 board** to Azure 
 
 If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has twenty-one ready-to-run sketches -- sensors, actuators, and combinations of both, including cloud-to-device control -- each a short, complete sketch you can read top to bottom, plus a connection-test sketch that needs no hardware at all.
 
+> 🚀 **New to this, or running a workshop?** Follow the **[step-by-step Tutorial](TUTORIAL.md)** instead. It assumes no prior experience and covers the one thing this README leaves out — **creating your Azure IoT Central app, device template, and device** (the steps below assume you already have them) — plus first success and a guided set of projects, in plain language. Everything below is the **reference**: quick setup, the full example list, and the API.
+
 ---
 
 ## Start here
 
 ### 1. Install the library
 
-**Easiest: Arduino IDE → Sketch → Include Library → Add .ZIP Library...** — download this repo as a ZIP (green **Code** button → **Download ZIP** on GitHub) and select that file directly. No unzipping needed.
+**Easiest: Arduino IDE → Sketch → Include Library → Manage Libraries…**, search **AzureIoT**, and click **Install** — it's published in the Arduino Library Manager. If the IDE offers to install dependencies, accept them (`PubSubClient`, plus `WiFiNINA` on the Uno).
 
-**Alternative (manual):** clone or unzip this repo, then rename the resulting folder to `AzureIoT` and place it directly in your Arduino libraries folder:
-- Windows/Mac/Linux: `Documents/Arduino/libraries/AzureIoT`
+**Alternative (ZIP):** download this repo as a ZIP (green **Code** button → **Download ZIP** on GitHub) and use **Sketch → Include Library → Add .ZIP Library...** — handy if you want a version newer than the one currently in Library Manager.
 
-Either way, restart the Arduino IDE afterward. You should now see **File → Examples → AzureIoT** listing the twenty-one examples.
+**Alternative (manual):** clone or unzip this repo, rename the resulting folder to `AzureIoT`, and place it directly in your Arduino libraries folder (`Documents/Arduino/libraries/AzureIoT`).
+
+Either way, restart the Arduino IDE afterward. You should now see **File → Examples → AzureIoT** listing the examples.
 
 ### 2. Board-specific setup
 
