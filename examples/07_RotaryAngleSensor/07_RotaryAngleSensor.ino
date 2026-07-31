@@ -9,7 +9,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_ROTARY_ANGLE = A1;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_ROTARY_ANGLE = 33;  // ESP32: A1 isn't defined on this core -- GPIO 33 (ADC1). Re-tune the /1023 math for the 12-bit ADC.
+#else
+const int PIN_ROTARY_ANGLE = A1;  // Uno WiFi Rev2 + Grove Base Shield: A1
+#endif
 const float ADC_REF = 5.0f;     // 3.3 instead if your board's Vcc switch is set to 3V3
 const float FULL_ANGLE = 300.0f; // the sensor's mechanical range in degrees
 const float GROVE_VCC = 5.0f;

@@ -9,7 +9,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_TURBIDITY = A3;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_TURBIDITY = 39;  // ESP32: GPIO 39 (ADC1). Re-tune the conversion for the 12-bit ADC.
+#else
+const int PIN_TURBIDITY = A3;  // Uno WiFi Rev2 + Grove Base Shield: A3
+#endif
 
 void setup() {
     Serial.begin(115200);

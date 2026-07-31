@@ -246,9 +246,11 @@ message) in Part C.
 **Same idea, more to explore:** `02_ButtonSensor`; the analog sensors `04`–`09`
 (sound, light, temperature…); `11`–`14`, which drive an LED/buzzer *and report
 their own state up*. All Mode 1 — all just `publish()`.
-> ⚠️ **Analog sensors on ESP32** (`04`–`09`, `13`, `17`, `18`): use an **ADC1 pin
-> (GPIO 32–39)** and re-tune the thresholds — ESP32's analog range is 0–4095 vs
-> the Uno's 0–1023. See the [README ESP32 note](README.md#the-examples).
+> ⚠️ **Analog sensors on ESP32** (`04`–`09`, `13`, `17`, `18`): these now
+> auto-select a valid ESP32 ADC1 pin (some Grove names like `A1`/`A2` don't exist
+> on the ESP32 core and wouldn't even compile). You still need to **re-tune the
+> thresholds** — ESP32's analog range is 0–4095 vs the Uno's 0–1023. See the
+> [README ESP32 note](README.md#the-examples).
 
 ---
 

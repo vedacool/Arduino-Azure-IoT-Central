@@ -11,7 +11,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_TEMPERATURE = A0;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_TEMPERATURE = 36;  // ESP32: GPIO 36 (ADC1). Re-tune the thermistor math for the 12-bit ADC.
+#else
+const int PIN_TEMPERATURE = A0;  // Uno WiFi Rev2 + Grove Base Shield: A0
+#endif
 
 void setup() {
     Serial.begin(115200);

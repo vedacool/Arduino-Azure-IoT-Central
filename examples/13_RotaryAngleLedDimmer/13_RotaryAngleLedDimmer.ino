@@ -11,7 +11,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-#define ROTARY_ANGLE_SENSOR A1 // on ESP32, use an ADC1 pin (GPIO 32-39) and re-tune the /1023 math for the 12-bit ADC -- see README's ESP32 note
+#if defined(ARDUINO_ARCH_ESP32)
+#define ROTARY_ANGLE_SENSOR 34 // ESP32: A1 isn't defined on this core -- GPIO 34 (ADC1). Re-tune the /1023 math for the 12-bit ADC.
+#else
+#define ROTARY_ANGLE_SENSOR A1 // Uno WiFi Rev2 + Grove Base Shield: A1
+#endif
 #if defined(ARDUINO_ARCH_ESP32)
 #define LED_PIN 2 // ESP32: GPIO 3 is the Serial RX pin -- never drive it. GPIO 2 (onboard LED) is PWM-capable via LEDC.
 #else

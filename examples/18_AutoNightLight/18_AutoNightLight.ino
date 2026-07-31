@@ -18,7 +18,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_LIGHT = A4;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_LIGHT = 35;  // ESP32: GPIO 35 (ADC1). Re-tune the dark thresholds for the 12-bit ADC.
+#else
+const int PIN_LIGHT = A4;  // Uno WiFi Rev2 + Grove Base Shield: A4
+#endif
 #if defined(ARDUINO_ARCH_ESP32)
 const int PIN_LED = 2;   // ESP32: onboard LED. GPIO 7 is a flash pin on ESP32 -- never usable
 #else

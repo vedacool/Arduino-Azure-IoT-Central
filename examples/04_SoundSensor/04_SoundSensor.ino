@@ -9,7 +9,11 @@
 #include <AzureIoT.h>
 #include "config.h"
 
-const int PIN_SOUND = A2;
+#if defined(ARDUINO_ARCH_ESP32)
+const int PIN_SOUND = 34;  // ESP32: A2 isn't defined on this core -- GPIO 34 (ADC1). Re-tune thresholds for the 12-bit ADC.
+#else
+const int PIN_SOUND = A2;  // Uno WiFi Rev2 + Grove Base Shield: A2
+#endif
 
 void setup() {
     Serial.begin(115200);
