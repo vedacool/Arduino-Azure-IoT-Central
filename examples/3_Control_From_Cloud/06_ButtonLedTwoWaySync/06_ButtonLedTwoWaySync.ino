@@ -1,4 +1,4 @@
-// Example 20 -- Button + LED Two-Way Sync
+// Example 6 -- Button + LED Two-Way Sync
 //
 // The hardest example in this set -- combines a sensor (Grove Button,
 // digital pin 4), an actuator (Grove LED, digital pin 7), and FULL

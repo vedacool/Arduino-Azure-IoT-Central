@@ -1,4 +1,4 @@
-// Example 23 -- Gas Sensor (Grove MQ2)
+// Example 16 -- Gas Sensor (Grove MQ2)
 //
 // Grove Gas Sensor (MQ2) on analog pin A1, publishing the sensor's output
 // voltage to Azure IoT Central. A higher voltage means more combustible

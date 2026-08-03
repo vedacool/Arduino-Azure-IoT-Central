@@ -1,4 +1,4 @@
-// Example 21 -- Remote Temperature Alarm
+// Example 1 -- Remote Temperature Alarm
 //
 // Sounds a buzzer (digital pin 6) when ANOTHER device's "temperature"
 // telemetry crosses 30 degrees C -- e.g. Device A is one of the

@@ -1,4 +1,4 @@
-// Example 16 -- Buzzer Cloud Control
+// Example 2 -- Buzzer Cloud Control
 //
 // Grove Buzzer on digital pin 6, controlled from the Azure IoT Central
 // dashboard using a writable property, same pattern as

@@ -1,4 +1,4 @@
-// Example 19 -- Comfort Alarm (DHT11)
+// Example 5 -- Comfort Alarm (DHT11)
 //
 // Grove Temperature & Humidity Sensor (DHT11) on digital pin 2 triggers a
 // buzzer (digital pin 6) automatically when it's uncomfortably hot/humid --

@@ -1,4 +1,4 @@
-// Example 15 -- LED Cloud Control
+// Example 1 -- LED Cloud Control
 //
 // Grove LED on digital pin 7, controlled directly from the Azure IoT
 // Central dashboard using a writable property. Flip the "ledState" toggle

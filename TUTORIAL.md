@@ -121,7 +121,7 @@ in with your Microsoft account.
 2. Choose **Custom application**.
 3. Give it an **Application name** (e.g. `my-first-iot`) — this also sets its web
    address (`my-first-iot.azureiotcentral.com`; **write this subdomain down**,
-   you'll need it for the advanced Example 21 later).
+   you'll need it for the advanced remote-telemetry example later).
 4. Pick the **Free** pricing plan to start.
 5. Click **Create**. You now have your own IoT dashboard.
 
@@ -142,14 +142,13 @@ switch for the LED projects.
 > sketch publishes needs a matching capability in this template (then **Publish**
 > the template again) to show on the dashboard.
 >
-> Add as **Telemetry → Double** (the on/off ones read 1/0, so Integer is fine too):
-> `touch` (01) · `button` (02, 20) · `water` (03, 14) · `sound` (04) ·
-> `light` (05, 18) · `moisture` (06) · `rotaryAngle` (07) · `turbidity` (08) ·
-> `temperature` (09, 10, 19) · `humidity` (10, 19) · `angle` (13) ·
-> **`distance` (22)** · **`gas` (23)** · **`motion` (24)**.
+> Add as **Telemetry → Double** (the on/off ones read 1/0, so Integer is fine too) —
+> add whichever the example you're running publishes (its `.ino`/Serial shows the key):
+> `touch` · `button` · `water` · `sound` · `light` · `moisture` · `rotaryAngle` ·
+> `turbidity` · `temperature` · `humidity` · `angle` · `distance` · `gas` · `motion`.
 >
-> Add as **Property → Writable → Boolean** (the dashboard switches):
-> `ledState` (15, 17, 18, 20) · `buzzerOn` (16) · `muted` (19).
+> Add as **Property → Writable → Boolean** (the dashboard switches, used by the
+> *Control From Cloud* examples): `ledState` · `buzzerOn` · `muted`.
 
 ### B4. Create a device and get your credentials
 1. **Devices → + New**.
@@ -229,8 +228,8 @@ Azure values as Part C) → wire the part → upload → watch.**
 | Mode | Direction | The one call | Example to start with |
 |---|---|---|---|
 | **1** | Device → Cloud (send readings up) 📤 | `AzureIoT.publish()` | `01_TouchSensor` |
-| **2** | Cloud → Device (dashboard controls the board) 📥 | `AzureIoT.onBoolProperty()` | `15_LedCloudControl` ⭐ |
-| **3** | Azure data → Device reacts (react to *another* device) 🔁 | `AzureIoT.onRemoteTelemetry()` | `21_RemoteTemperatureAlarm` |
+| **2** | Cloud → Device (dashboard controls the board) 📥 | `AzureIoT.onBoolProperty()` | `01_LedCloudControl` ⭐ |
+| **3** | Azure data → Device reacts (react to *another* device) 🔁 | `AzureIoT.onRemoteTelemetry()` | `01_RemoteTemperatureAlarm` |
 
 > 🔌 **Wiring note.** The examples are built for **Grove modules on a Grove Base
 > Shield** on the Uno — just plug the module into the labeled port. On **ESP32**
@@ -252,16 +251,15 @@ message) in Part C.
   to your template (same as Part B3) and **Publish** — the value now appears on
   the device page.
 
-**Same idea, more to explore:** `02_ButtonSensor` and `24_PirMotion` (digital in);
-`22_UltrasonicDistance` (single-pin distance, no extra library to install); the
-analog sensors `04`–`09` and `23_GasSensor` (sound, light, temperature, gas…);
+**Same idea, more to explore:** `02_ButtonSensor` and `17_PirMotion` (digital in);
+`15_UltrasonicDistance` (single-pin distance, no extra library to install); the
+analog sensors `04`–`09` and `16_GasSensor` (sound, light, temperature, gas…);
 `11`–`14`, which drive an LED/buzzer *and report their own state up*. All Mode 1
 — all just `publish()`.
-> ⚠️ **Analog sensors on ESP32** (`04`–`09`, `13`, `17`, `18`, `23`): these now
-> auto-select a valid ESP32 ADC1 pin (some Grove names like `A1`/`A2` don't exist
-> on the ESP32 core and wouldn't even compile). You still need to **re-tune the
-> thresholds** — ESP32's analog range is 0–4095 vs the Uno's 0–1023. See the
-> [README ESP32 note](README.md#the-examples).
+> ⚠️ **Analog sensors on ESP32:** these auto-select a valid ESP32 ADC1 pin (some
+> Grove names like `A1`/`A2` don't exist on the ESP32 core and wouldn't even
+> compile). You still need to **re-tune the thresholds** — ESP32's analog range
+> is 0–4095 vs the Uno's 0–1023. See the [README ESP32 note](README.md#the-examples).
 
 ---
 
@@ -271,7 +269,7 @@ Now the other direction: a switch on the IoT Central dashboard controls somethin
 on the board, via `AzureIoT.onBoolProperty("name", callback)`. It uses the
 **`ledState`** switch you created in Part B3.
 
-**Do this one — `15_LedCloudControl` ⭐ (the "wow" moment):**
+**Do this one — `01_LedCloudControl` ⭐ (the "wow" moment):**
 - **Wire:** Grove LED → **D7** (Uno) / **GPIO 2** (ESP32 onboard LED — may need no wiring).
 - **Do:** upload, then open your device in IoT Central. If the switch isn't there,
   your template needs the **writable `ledState` property**, **Published** (Part B3).
@@ -281,9 +279,9 @@ on the board, via `AzureIoT.onBoolProperty("name", callback)`. It uses the
   **on** — it picks up the switch's state the instant it reconnects. (That's what
   makes it a *property*, not a one-shot command.)
 
-**Same idea, more to explore:** `16_BuzzerCloudControl` (add a `buzzerOn` writable
-property to your template first). `17`/`18`/`19` combine the board's *own* logic
-with cloud control. `20_ButtonLedTwoWaySync` is the hardest — a physical button
+**Same idea, more to explore:** `02_BuzzerCloudControl` (add a `buzzerOn` writable
+property to your template first). `03`/`04`/`05` combine the board's *own* logic
+with cloud control. `06_ButtonLedTwoWaySync` is the hardest — a physical button
 **and** the dashboard both control one LED and stay in sync.
 
 ---
@@ -293,11 +291,11 @@ with cloud control. `20_ButtonLedTwoWaySync` is the hardest — a physical butto
 The third mode reads a **different** device's data out of Azure and reacts to it —
 e.g. **Board B sounds a buzzer when Board A's temperature goes above 30 °C**,
 without Board B having its own thermometer. This is
-`AzureIoT.onRemoteTelemetry(...)`, in example **`21_RemoteTemperatureAlarm`**.
+`AzureIoT.onRemoteTelemetry(...)`, in example **`01_RemoteTemperatureAlarm`** (the *React To Another Device* group).
 
 Two things make this mode different from the others:
 - **It needs two devices.** Board A runs a Mode-1 temperature example (e.g.
-  `09_TemperatureSensor`) and publishes `temperature`; Board B runs `21` and
+  `09_TemperatureSensor`) and publishes `temperature`; Board B runs `01_RemoteTemperatureAlarm` and
   watches it. In a class, Board A can be a **classmate's board** — just use its
   Device ID.
 - **It uses a different key and it *polls*.** Azure won't let one device subscribe
@@ -311,14 +309,14 @@ In IoT Central: **Permissions → API tokens → + New →** name it → role
 **Copy the whole token string** (it starts with `SharedAccessSignature ...`) —
 you only get to see it once.
 
-**Configure `21` on Board B:**
+**Configure `01_RemoteTemperatureAlarm` on Board B:**
 - In its **`config.h`** set your Wi-Fi, plus:
   - `IOTC_REMOTE_APP_SUBDOMAIN` — your app's subdomain (the `myapp` in
     `myapp.azureiotcentral.com`, from Part B2)
   - `IOTC_REMOTE_API_TOKEN` — the full token you just copied
   - *(leave `IOTC_ID_SCOPE`/`IOTC_DEVICE_ID`/`IOTC_DEVICE_KEY` untouched — a
     pull-only board never uses them)*
-- In `21_RemoteTemperatureAlarm.ino`, set `REMOTE_DEVICE_ID` to **Board A's** Device ID.
+- In `01_RemoteTemperatureAlarm.ino`, set `REMOTE_DEVICE_ID` to **Board A's** Device ID.
 - **Wire:** Buzzer → **D6** (Uno) / **GPIO 4** (ESP32).
 
 **See:** Board B's Serial prints `Remote temperature: 24.50` every ~15 s, and the

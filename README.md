@@ -85,39 +85,57 @@ Check IoT Central → **Devices → your device → View** — you should see th
 
 ## The examples
 
-All twenty-four numbered examples use **Seeed Studio Grove-ecosystem sensor and actuator modules**, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
+The `examples/` folder is organised into **four groups** — they show up as submenus under **File → Examples → AzureIoT**, matching the three things this library does plus a no-hardware starting point:
 
-**If you're on ESP32** (or any board without a Grove Base Shield): the digital actuator/sensor examples now auto-select ESP32-safe pins via an `#if defined(ARDUINO_ARCH_ESP32)` block near the top of each `.ino`. This matters because the Grove/Uno pin numbers are **actively unsafe** on ESP32: **GPIO 6–11 are wired to the ESP32's SPI flash** (the LED/buzzer examples use D7/D6 on Uno — driving those exact pins on ESP32 crashes/brown-out-resets the board), and **GPIO 3 is the ESP32's Serial RX** (the touch example's D3). On ESP32 those examples default to GPIO 2 (onboard LED), GPIO 4 (buzzer), and GPIO 15 (touch) respectively — wire your module there, or edit the ESP32 branch to match your wiring. **The analog sensor examples (04–09, 13, 17, 18, 23) now auto-select a valid ESP32 ADC1 pin** via the same `#if` block — necessary because some Grove pin names (`A1`, `A2`) aren't even *defined* on the ESP32 core and won't compile there. But a pin swap isn't the whole story: the ESP32 ADC is 12-bit (0–4095) with a different voltage reference than the Uno's 10-bit (0–1023), so their thresholds and conversion math are Uno-calibrated and **read wrong on ESP32 until you re-tune them for 12-bit**. (If you pick your own pin, keep it on **ADC1** — GPIO 32–39; ADC2 pins don't work while Wi-Fi is on.) `00_ConnectionTest` needs none of this — it's the one example with no hardware requirement at all.
+1. **Start Here** — the connection test (no wiring).
+2. **Send To Cloud** — device → cloud telemetry (`publish()`).
+3. **Control From Cloud** — cloud → device, via writable properties (`onBoolProperty()`).
+4. **React To Another Device** — react to another device's telemetry (`onRemoteTelemetry()`).
 
-They're numbered roughly easiest-to-hardest, not alphabetically or by sensor type -- a good order to work through if you're new to this:
+Within each group the examples are numbered roughly easiest-to-hardest. The sensor/actuator examples use **Seeed Studio Grove modules** on a **Grove Base Shield** atop an Arduino Uno WiFi Rev2 — the Uno pin numbers in the tables below are exactly right for that setup.
 
+**If you're on ESP32** (or any board without a Grove Base Shield): every example auto-selects ESP32-safe pins via an `#if defined(ARDUINO_ARCH_ESP32)` block near the top. This matters because the Grove/Uno pins are **actively unsafe** on ESP32 — **GPIO 6–11 are wired to its SPI flash** (the LED/buzzer examples' D7/D6 would crash the board), and **GPIO 3 is its Serial RX** (the touch example's D3) — so on ESP32 they default to GPIO 2 (LED), 4 (buzzer), 15 (touch), etc. The **analog** examples additionally need a valid **ADC1** pin (some Grove names like `A1`/`A2` aren't even defined on ESP32 and won't compile), and the ESP32's 12-bit ADC (0–4095, different reference) makes their Uno-calibrated thresholds/math **read wrong until you re-tune them** — see each sketch's ESP32 pin comment. Also **power Grove sensors from 3V3, not 5V, on ESP32** — its GPIOs aren't 5 V-tolerant. `00_ConnectionTest` needs none of this.
+
+### 1 · Start Here
 | # | Example | What it demonstrates | Hardware / pin |
 |---|---|---|---|
-| — | `00_ConnectionTest` | **None** — just proves Wi-Fi/DPS/MQTT work, no wiring needed. Start here. | — |
-| 1 | `01_TouchSensor` | Simplest possible read: digital in, publish | Grove Touch, digital pin 3 |
-| 2 | `02_ButtonSensor` | Same shape as Touch | Grove Button, digital pin 4 |
-| 3 | `03_WaterSensor` | Digital in, publish | Grove Water, digital pin 5 |
-| 4 | `04_SoundSensor` | Analog in (averaged), publish | Grove Sound, A2 |
-| 5 | `05_LightSensor` | Analog in, publish | Grove Light (photoresistor), A4 |
-| 6 | `06_MoistureSensor` | Analog in, publish | Grove Moisture, A5 |
-| 7 | `07_RotaryAngleSensor` | Analog in + voltage/degree math | Grove Rotary Angle, A1 |
-| 8 | `08_TurbiditySensor` | Analog in + voltage conversion | Grove Turbidity, A3 |
-| 9 | `09_TemperatureSensor` | Analog in + nonlinear thermistor math | Grove Temperature, A0 |
-| 10 | `10_TemperatureHumiditySensor` | Needs an extra library (DHT11) — first real dependency | Grove Temp & Humidity, digital pin 2 |
-| 11 | `11_LedStatusReport` | First actuator example — reports its own state, no cloud control | Grove LED, digital pin 7 |
-| 12 | `12_BuzzerStatusReport` | Same shape, second actuator | Grove Buzzer, digital pin 6 |
-| 13 | `13_RotaryAngleLedDimmer` | First analog *output* (PWM) | Rotary Angle (A1) → LED (PWM pin 3) |
-| 14 | `14_WaterAlarm` | First "one sensor drives multiple actuators" | Water (pin 5) → Buzzer (pin 6) + LED (pin 7) |
-| 15 | `15_LedCloudControl` | First bidirectional example — `onBoolProperty()` | Grove LED, digital pin 7 |
-| 16 | `16_BuzzerCloudControl` | Reinforces bidirectional control, second actuator | Grove Buzzer, digital pin 6 |
-| 17 | `17_ClapToToggleLed` | Event-driven local logic + cloud control combined | Sound (A2) → LED (pin 7) |
-| 18 | `18_AutoNightLight` | Automatic sensor-threshold logic + cloud override | Light (A4) → LED (pin 7) |
-| 19 | `19_ComfortAlarm` | Same pattern as 18, with the harder DHT11 sensor | Temp & Humidity (pin 2) → Buzzer (pin 6) |
-| 20 | `20_ButtonLedTwoWaySync` | Hardest: sensor + actuator + full two-way sync | Button (pin 4) + LED (pin 7) |
-| 21 | `21_RemoteTemperatureAlarm` | Reading a DIFFERENT device's telemetry via REST polling (v1.1+) | Buzzer (pin 6), no local sensor |
-| 22 | `22_UltrasonicDistance` | Single-pin ultrasonic distance, no extra library needed | Grove Ultrasonic Ranger, digital pin 7 |
-| 23 | `23_GasSensor` | Analog gas/smoke level (relative, not ppm) | Grove Gas MQ2, A1 |
-| 24 | `24_PirMotion` | Digital motion detect, publishes 1/0 | Grove PIR Motion, digital pin 2 |
+| — | `00_ConnectionTest` | **None** — proves Wi-Fi/DPS/MQTT work, no wiring. Start here. | — |
+
+### 2 · Send To Cloud — device → cloud (telemetry)
+| # | Example | What it demonstrates | Hardware / pin (Uno) |
+|---|---|---|---|
+| 01 | `TouchSensor` | Simplest read: digital in, publish | Grove Touch, D3 |
+| 02 | `ButtonSensor` | Same shape as Touch | Grove Button, D4 |
+| 03 | `WaterSensor` | Digital in, publish | Grove Water, D5 |
+| 04 | `SoundSensor` | Analog in (averaged) | Grove Sound, A2 |
+| 05 | `LightSensor` | Analog in | Grove Light, A4 |
+| 06 | `MoistureSensor` | Analog in | Grove Moisture, A5 |
+| 07 | `RotaryAngleSensor` | Analog in + voltage/degree math | Grove Rotary Angle, A1 |
+| 08 | `TurbiditySensor` | Analog in + voltage conversion | Grove Turbidity, A3 |
+| 09 | `TemperatureSensor` | Analog in + thermistor math | Grove Temperature, A0 |
+| 10 | `TemperatureHumiditySensor` | First extra-library dependency (DHT11) | Grove Temp & Humidity, D2 |
+| 11 | `LedStatusReport` | First actuator — reports its own state | Grove LED, D7 |
+| 12 | `BuzzerStatusReport` | Same shape, second actuator | Grove Buzzer, D6 |
+| 13 | `RotaryAngleLedDimmer` | First analog *output* (PWM) | Rotary Angle (A1) → LED (PWM D3) |
+| 14 | `WaterAlarm` | One sensor drives multiple actuators | Water (D5) → Buzzer (D6) + LED (D7) |
+| 15 | `UltrasonicDistance` | Single-pin ultrasonic distance, no extra library | Grove Ultrasonic Ranger, D7 |
+| 16 | `GasSensor` | Analog gas/smoke level (relative, not ppm) | Grove Gas MQ2, A1 |
+| 17 | `PirMotion` | Digital motion detect, publishes 1/0 | Grove PIR Motion, D2 |
+
+### 3 · Control From Cloud — cloud → device (writable properties)
+| # | Example | What it demonstrates | Hardware / pin (Uno) |
+|---|---|---|---|
+| 01 | `LedCloudControl` | First bidirectional — `onBoolProperty()` | Grove LED, D7 |
+| 02 | `BuzzerCloudControl` | Same, second actuator | Grove Buzzer, D6 |
+| 03 | `ClapToToggleLed` | Event-driven local logic + cloud control | Sound (A2) → LED (D7) |
+| 04 | `AutoNightLight` | Sensor-threshold logic + cloud override | Light (A4) → LED (D7) |
+| 05 | `ComfortAlarm` | Same pattern, harder DHT11 sensor | Temp & Humidity (D2) → Buzzer (D6) |
+| 06 | `ButtonLedTwoWaySync` | Hardest: sensor + actuator + two-way sync | Button (D4) + LED (D7) |
+
+### 4 · React To Another Device — react to another device's telemetry
+| # | Example | What it demonstrates | Hardware / pin (Uno) |
+|---|---|---|---|
+| 01 | `RemoteTemperatureAlarm` | Read a DIFFERENT device's telemetry via REST polling (v1.1+) | Buzzer, D6 (no local sensor) |
 
 Every example is the same three-part shape:
 ```cpp
@@ -178,7 +196,7 @@ A few things worth knowing:
 - **`name` follows the same rule as `publish()`'s key** — pass a string literal (`"ledState"`), not something built at runtime.
 - **The dashboard shows "Accepted" automatically.** After your callback returns, the library sends a full IoT Plug-and-Play-style acknowledgment (value, status, version) back to Azure — you don't write any of that yourself. (Confirmed against the real IoT Central UI: the toggle shows "Pending" until this ack arrives, then flips to "✓ Accepted".)
 - **Fixed cap of 16 registrations**, same reasoning and same number as `publish()`'s staged-keys limit: this library never heap-allocates, so an unbounded list isn't an option on a 6KB-RAM board, and 16 is generous headroom for any real project without that risk.
-- **If local logic (not the cloud) changes something the dashboard also controls** -- a physical button toggling an LED, a sensor threshold triggering a buzzer -- call `AzureIoT.reportBoolProperty(name, value)` to tell Azure about it, so the dashboard reflects the change instead of only showing whatever it last set itself. This sends a plain reported-property update, deliberately without the ack fields `onBoolProperty()`'s automatic response uses -- those specifically mean "responding to a particular desired-property version," which doesn't apply to a change nothing from the cloud asked for. See `17_ClapToToggleLed`, `18_AutoNightLight`, `19_ComfortAlarm`, and `20_ButtonLedTwoWaySync` for this in practice.
+- **If local logic (not the cloud) changes something the dashboard also controls** -- a physical button toggling an LED, a sensor threshold triggering a buzzer -- call `AzureIoT.reportBoolProperty(name, value)` to tell Azure about it, so the dashboard reflects the change instead of only showing whatever it last set itself. This sends a plain reported-property update, deliberately without the ack fields `onBoolProperty()`'s automatic response uses -- those specifically mean "responding to a particular desired-property version," which doesn't apply to a change nothing from the cloud asked for. See `03_ClapToToggleLed`, `04_AutoNightLight`, `05_ComfortAlarm`, and `06_ButtonLedTwoWaySync` (in *Control From Cloud*) for this in practice.
 - **If MQTT isn't connected when you call `reportBoolProperty()`, it's staged and retried automatically** -- `AzureIoT.loop()` catches up on any pending reports once MQTT reconnects. Only the *latest* value per property name is kept (a fixed 16-slot table, same as `publish()`'s staged keys), so if the same property changes several times while offline, only the final value gets sent once reconnected -- not a backlog of every intermediate change.
 
 ---
@@ -227,7 +245,7 @@ void loop() {
 }
 ```
 
-See `21_RemoteTemperatureAlarm` for the complete example.
+See `01_RemoteTemperatureAlarm` (in *React To Another Device*) for the complete example.
 
 A few things worth knowing:
 

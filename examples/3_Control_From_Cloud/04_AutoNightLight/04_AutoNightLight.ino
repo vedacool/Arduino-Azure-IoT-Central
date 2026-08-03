@@ -1,4 +1,4 @@
-// Example 18 -- Auto Night Light
+// Example 4 -- Auto Night Light
 //
 // Grove Light Sensor on A4 automatically turns an LED (digital pin 7) on
 // when it's dark and off when it's bright -- a SUSTAINED condition

@@ -1,4 +1,4 @@
-// Example 22 -- Ultrasonic Distance (Grove Ultrasonic Ranger)
+// Example 15 -- Ultrasonic Distance (Grove Ultrasonic Ranger)
 //
 // Grove Ultrasonic Ranger on digital pin 7, publishing the measured
 // distance (in centimetres) to Azure IoT Central. The Grove Ultrasonic

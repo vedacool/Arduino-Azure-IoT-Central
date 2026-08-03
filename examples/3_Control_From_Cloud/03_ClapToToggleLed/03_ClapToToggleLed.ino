@@ -1,4 +1,4 @@
-// Example 17 -- Clap-to-Toggle LED
+// Example 3 -- Clap-to-Toggle LED
 //
 // Grove Sound Sensor on A2 detects a sharp sound spike (a clap) and toggles
 // an LED on digital pin 7 -- an EVENT (a brief spike), not a sustained

@@ -1,4 +1,4 @@
-// Example 24 -- PIR Motion Sensor (Grove)
+// Example 17 -- PIR Motion Sensor (Grove)
 //
 // Grove PIR Motion Sensor on digital pin 2, publishing 1 when motion is
 // detected and 0 otherwise to Azure IoT Central. Same simple digital-in
