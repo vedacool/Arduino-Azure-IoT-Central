@@ -138,9 +138,18 @@ switch for the LED projects.
 4. Click **Publish** (top bar) and confirm. **A template must be published before
    devices can use it.**
 
-> You can add more telemetry names later (e.g. `sound`, `light`) the same way —
-> each raw key your sketch publishes needs a matching capability here to show up
-> nicely on the dashboard.
+> **Capability cheat-sheet — add these as you try more examples.** Each raw key a
+> sketch publishes needs a matching capability in this template (then **Publish**
+> the template again) to show on the dashboard.
+>
+> Add as **Telemetry → Double** (the on/off ones read 1/0, so Integer is fine too):
+> `touch` (01) · `button` (02, 20) · `water` (03, 14) · `sound` (04) ·
+> `light` (05, 18) · `moisture` (06) · `rotaryAngle` (07) · `turbidity` (08) ·
+> `temperature` (09, 10, 19) · `humidity` (10, 19) · `angle` (13) ·
+> **`distance` (22)** · **`gas` (23)** · **`motion` (24)**.
+>
+> Add as **Property → Writable → Boolean** (the dashboard switches):
+> `ledState` (15, 17, 18, 20) · `buzzerOn` (16) · `muted` (19).
 
 ### B4. Create a device and get your credentials
 1. **Devices → + New**.
