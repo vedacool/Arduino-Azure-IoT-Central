@@ -2,7 +2,7 @@
 
 An Arduino library that connects a Uno WiFi Rev2 **or an ESP32 board** to Azure IoT Central: Wi-Fi, on-device Azure DPS provisioning, and MQTT telemetry — no PC-side tools, no editing library files, no config-table to learn.
 
-If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has twenty-one ready-to-run sketches -- sensors, actuators, and combinations of both, including cloud-to-device control -- each a short, complete sketch you can read top to bottom, plus a connection-test sketch that needs no hardware at all.
+If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has twenty-four ready-to-run sketches -- sensors, actuators, and combinations of both, including cloud-to-device control -- each a short, complete sketch you can read top to bottom, plus a connection-test sketch that needs no hardware at all.
 
 > 🚀 **New to this, or running a workshop?** Follow the **[step-by-step Tutorial](TUTORIAL.md)** instead. It assumes no prior experience and covers the one thing this README leaves out — **creating your Azure IoT Central app, device template, and device** (the steps below assume you already have them) — plus first success and a guided set of projects, in plain language. Everything below is the **reference**: quick setup, the full example list, and the API.
 
@@ -85,9 +85,9 @@ Check IoT Central → **Devices → your device → View** — you should see th
 
 ## The examples
 
-All twenty-one numbered examples use **Seeed Studio Grove-ecosystem sensor and actuator modules**, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
+All twenty-four numbered examples use **Seeed Studio Grove-ecosystem sensor and actuator modules**, designed to plug into a **Grove Base Shield** sitting on top of an Arduino Uno WiFi Rev2 (each Grove module connects with a 4-pin cable, no breadboarding needed). If you're on Uno WiFi Rev2 with the Grove kit, the pin numbers below are exactly right as-is.
 
-**If you're on ESP32** (or any board without a Grove Base Shield): the digital actuator/sensor examples now auto-select ESP32-safe pins via an `#if defined(ARDUINO_ARCH_ESP32)` block near the top of each `.ino`. This matters because the Grove/Uno pin numbers are **actively unsafe** on ESP32: **GPIO 6–11 are wired to the ESP32's SPI flash** (the LED/buzzer examples use D7/D6 on Uno — driving those exact pins on ESP32 crashes/brown-out-resets the board), and **GPIO 3 is the ESP32's Serial RX** (the touch example's D3). On ESP32 those examples default to GPIO 2 (onboard LED), GPIO 4 (buzzer), and GPIO 15 (touch) respectively — wire your module there, or edit the ESP32 branch to match your wiring. **The analog sensor examples (04–09, 13, 17, 18) now auto-select a valid ESP32 ADC1 pin** via the same `#if` block — necessary because some Grove pin names (`A1`, `A2`) aren't even *defined* on the ESP32 core and won't compile there. But a pin swap isn't the whole story: the ESP32 ADC is 12-bit (0–4095) with a different voltage reference than the Uno's 10-bit (0–1023), so their thresholds and conversion math are Uno-calibrated and **read wrong on ESP32 until you re-tune them for 12-bit**. (If you pick your own pin, keep it on **ADC1** — GPIO 32–39; ADC2 pins don't work while Wi-Fi is on.) `00_ConnectionTest` needs none of this — it's the one example with no hardware requirement at all.
+**If you're on ESP32** (or any board without a Grove Base Shield): the digital actuator/sensor examples now auto-select ESP32-safe pins via an `#if defined(ARDUINO_ARCH_ESP32)` block near the top of each `.ino`. This matters because the Grove/Uno pin numbers are **actively unsafe** on ESP32: **GPIO 6–11 are wired to the ESP32's SPI flash** (the LED/buzzer examples use D7/D6 on Uno — driving those exact pins on ESP32 crashes/brown-out-resets the board), and **GPIO 3 is the ESP32's Serial RX** (the touch example's D3). On ESP32 those examples default to GPIO 2 (onboard LED), GPIO 4 (buzzer), and GPIO 15 (touch) respectively — wire your module there, or edit the ESP32 branch to match your wiring. **The analog sensor examples (04–09, 13, 17, 18, 23) now auto-select a valid ESP32 ADC1 pin** via the same `#if` block — necessary because some Grove pin names (`A1`, `A2`) aren't even *defined* on the ESP32 core and won't compile there. But a pin swap isn't the whole story: the ESP32 ADC is 12-bit (0–4095) with a different voltage reference than the Uno's 10-bit (0–1023), so their thresholds and conversion math are Uno-calibrated and **read wrong on ESP32 until you re-tune them for 12-bit**. (If you pick your own pin, keep it on **ADC1** — GPIO 32–39; ADC2 pins don't work while Wi-Fi is on.) `00_ConnectionTest` needs none of this — it's the one example with no hardware requirement at all.
 
 They're numbered roughly easiest-to-hardest, not alphabetically or by sensor type -- a good order to work through if you're new to this:
 
@@ -115,6 +115,9 @@ They're numbered roughly easiest-to-hardest, not alphabetically or by sensor typ
 | 19 | `19_ComfortAlarm` | Same pattern as 18, with the harder DHT11 sensor | Temp & Humidity (pin 2) → Buzzer (pin 6) |
 | 20 | `20_ButtonLedTwoWaySync` | Hardest: sensor + actuator + full two-way sync | Button (pin 4) + LED (pin 7) |
 | 21 | `21_RemoteTemperatureAlarm` | Reading a DIFFERENT device's telemetry via REST polling (v1.1+) | Buzzer (pin 6), no local sensor |
+| 22 | `22_UltrasonicDistance` | Single-pin ultrasonic distance, no extra library needed | Grove Ultrasonic Ranger, digital pin 7 |
+| 23 | `23_GasSensor` | Analog gas/smoke level (relative, not ppm) | Grove Gas MQ2, A1 |
+| 24 | `24_PirMotion` | Digital motion detect, publishes 1/0 | Grove PIR Motion, digital pin 2 |
 
 Every example is the same three-part shape:
 ```cpp
