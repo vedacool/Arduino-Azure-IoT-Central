@@ -11,7 +11,7 @@
 //   #include "config.h"   // your Wi-Fi + Azure credentials -- ships with placeholders, just edit them
 //
 //   void setup() {
-//     Serial.begin(115200);
+//     Serial.begin(9600);
 //     AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
 //   }
 //

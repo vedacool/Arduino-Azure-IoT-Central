@@ -28,7 +28,7 @@ void onBuzzerOn(bool on) {
 }
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(PIN_BUZZER, OUTPUT);
 
     // Must be called BEFORE begin() -- see AzureIoT.h for the full design.

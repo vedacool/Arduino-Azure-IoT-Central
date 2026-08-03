@@ -26,7 +26,7 @@
 #define VCC_GROVE 5
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(ROTARY_ANGLE_SENSOR, INPUT);
     pinMode(LED_PIN, OUTPUT);
 

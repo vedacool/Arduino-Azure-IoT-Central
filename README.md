@@ -62,7 +62,7 @@ ESP32 doesn't need any of this — its root certificate is already embedded in t
 
 ### 6. Upload and check the Serial Monitor
 
-Select **Tools → Board →** your board (e.g. **Arduino Uno WiFi Rev2**, or whichever ESP32 board you have) and the right port, then Upload. Open **Tools → Serial Monitor** at **115200 baud**. You should see:
+Select **Tools → Board →** your board (e.g. **Arduino Uno WiFi Rev2**, or whichever ESP32 board you have) and the right port, then Upload. Open **Tools → Serial Monitor** at **9600 baud**. You should see:
 
 ```
 Connecting to WiFi: ...
@@ -125,7 +125,7 @@ Every example is the same three-part shape:
 #include "config.h"
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
     // connects WiFi, provisions via DPS, connects MQTT
 }

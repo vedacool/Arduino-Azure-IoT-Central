@@ -194,7 +194,7 @@ static const char IOTC_DEVICE_KEY[]= "paste Primary key from Part B4";
 
 ### C4. Watch it work
 Open **Tools → Serial Monitor** and set the baud rate (bottom-right) to
-**115200**. You should see, over ~10–20 seconds:
+**9600**. You should see, over ~10–20 seconds:
 
 ```
 Connecting to WiFi: ...
@@ -235,7 +235,7 @@ Azure values as Part C) → wire the part → upload → watch.**
 > 🔌 **Wiring note.** The examples are built for **Grove modules on a Grove Base
 > Shield** on the Uno — just plug the module into the labeled port. On **ESP32**
 > there's no shield, so wire the module's signal pin to the GPIO the sketch uses
-> (shown per project), plus the module's **VCC→3V3** and **GND→GND**.
+> (shown per project), plus the module's **VCC→3V3** and **GND→GND**. **On ESP32, power Grove sensors from 3V3, not 5V — ESP32 GPIOs are not 5 V-tolerant, so a 5 V sensor signal can damage the board.**
 
 ---
 

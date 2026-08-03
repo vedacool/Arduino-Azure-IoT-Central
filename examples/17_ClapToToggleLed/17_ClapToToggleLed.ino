@@ -42,7 +42,7 @@ void onLedState(bool on) {
 }
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(PIN_SOUND, INPUT);
     pinMode(PIN_LED, OUTPUT);
 

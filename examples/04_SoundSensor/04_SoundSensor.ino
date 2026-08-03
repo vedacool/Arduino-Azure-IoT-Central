@@ -16,7 +16,7 @@ const int PIN_SOUND = A2;  // Uno WiFi Rev2 + Grove Base Shield: A2
 #endif
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data
     // (default 5000ms / 5 seconds). Uncomment and adjust if you want it

@@ -21,7 +21,7 @@ const int PIN_LED    = 7;   // Uno WiFi Rev2 + Grove Base Shield: Grove D7
 #endif
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(PIN_WATER, INPUT);
     pinMode(PIN_BUZZER, OUTPUT);
     pinMode(PIN_LED, OUTPUT);

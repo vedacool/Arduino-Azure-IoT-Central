@@ -19,7 +19,7 @@ const float FULL_ANGLE = 300.0f; // the sensor's mechanical range in degrees
 const float GROVE_VCC = 5.0f;
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data
     // (default 5000ms / 5 seconds). Uncomment and adjust if you want it

@@ -24,7 +24,7 @@ bool ledState = false;
 unsigned long lastBlinkMillis = 0;
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(PIN_LED, OUTPUT);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data

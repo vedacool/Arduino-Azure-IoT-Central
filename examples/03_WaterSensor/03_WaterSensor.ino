@@ -12,7 +12,7 @@
 const int PIN_WATER = 5;
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(PIN_WATER, INPUT);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data

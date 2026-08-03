@@ -18,7 +18,7 @@ const int PIN_MOISTURE = A5;  // Uno WiFi Rev2 + Grove Base Shield: A5
 #endif
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(PIN_MOISTURE, INPUT);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data

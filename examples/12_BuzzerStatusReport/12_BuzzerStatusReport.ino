@@ -25,7 +25,7 @@ bool buzzerOn = false;
 unsigned long lastToggleMillis = 0;
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(PIN_BUZZER, OUTPUT);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data

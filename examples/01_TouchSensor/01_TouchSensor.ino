@@ -16,7 +16,7 @@ const int PIN_TOUCH = 3;   // Uno WiFi Rev2 + Grove Base Shield: Grove D3
 #endif
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(PIN_TOUCH, INPUT);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data

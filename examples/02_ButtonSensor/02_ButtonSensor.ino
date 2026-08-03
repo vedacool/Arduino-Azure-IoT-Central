@@ -13,7 +13,7 @@
 const int PIN_BUTTON = 4;
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     pinMode(PIN_BUTTON, INPUT);
 
     // Optional: how often AzureIoT.loop() sends staged publish() data

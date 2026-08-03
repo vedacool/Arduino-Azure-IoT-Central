@@ -19,7 +19,7 @@ const int PIN_HUMIDITY = 2;
 DHT dht(PIN_HUMIDITY, DHT11);
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     dht.begin();
 
     // Optional: how often AzureIoT.loop() sends staged publish() data
