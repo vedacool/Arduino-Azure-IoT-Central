@@ -231,6 +231,12 @@ order. Work one example from each mode and you've seen the whole picture. Every
 project has the same shape: **open the example → set `config.h` (same Wi-Fi +
 Azure values as Part C) → wire the part → upload → watch.**
 
+> 📖 **Want the full click-by-click steps for a *specific* example** (exact wiring,
+> the exact IoT Central capability/property to add, and what you'll see)? The
+> **[Example Cookbook → GUIDE.md](GUIDE.md)** has a complete, self-contained
+> walkthrough for **all 28 examples**. This Part D teaches the *ideas* behind each
+> mode; the cookbook is the per-example recipe.
+
 | Mode | Direction | The one call | Example to start with |
 |---|---|---|---|
 | **1** | Device → Cloud (send readings up) 📤 | `AzureIoT.publish()` | `01_TouchSensor` |

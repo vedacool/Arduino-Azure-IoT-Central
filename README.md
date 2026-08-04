@@ -4,7 +4,7 @@ An Arduino library that connects a Uno WiFi Rev2 **or an ESP32 board** to Azure 
 
 If you just want to get a Uno WiFi Rev2 or ESP32 board talking to Azure IoT Central with a couple of function calls, skip straight to **Start here** below. The `examples/` folder has twenty-four ready-to-run sketches -- sensors, actuators, and combinations of both, including cloud-to-device control -- each a short, complete sketch you can read top to bottom, plus a connection-test sketch that needs no hardware at all.
 
-> 🚀 **New to this, or running a workshop?** Follow the **[step-by-step Tutorial](TUTORIAL.md)** instead. It assumes no prior experience and covers the one thing this README leaves out — **creating your Azure IoT Central app, device template, and device** (the steps below assume you already have them) — plus first success and a guided set of projects, in plain language. Everything below is the **reference**: quick setup, the full example list, and the API.
+> 🚀 **New to this, or running a workshop?** Follow the **[step-by-step Tutorial](TUTORIAL.md)** instead. It assumes no prior experience and covers the one thing this README leaves out — **creating your Azure IoT Central app, device template, and device** (the steps below assume you already have them) — plus first success and a guided set of projects, in plain language. Everything below is the **reference**: quick setup, the full example list, and the API. And for a **click-by-click walkthrough of every single example** (wiring, the exact IoT Central setup, and what you'll see), open the **[Example Cookbook → GUIDE.md](GUIDE.md)**.
 
 ---
 
