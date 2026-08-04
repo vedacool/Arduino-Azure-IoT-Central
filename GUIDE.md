@@ -34,6 +34,79 @@ Each example below tells you *exactly* which capability/property to add.
 
 ---
 
+## 0 · Set up Azure IoT Central once — then just add to it
+
+**Use ONE device template and ONE device for the whole workshop, and keep *adding*
+capabilities to that same template as you move through the examples** — don't make a
+new template per example. (First-time app + device + template creation is in
+[Tutorial Part B](TUTORIAL.md#part-b--set-up-azure-iot-central); come back here for
+the capability details.)
+
+Almost everything lives in **Device templates → [your template] → Model** and in
+**Views**. These are the only four procedures you need:
+
+### A) Add a telemetry field (a value the board *sends up*)
+1. **Device templates** → click **[your template]** (e.g. `Grove Board`).
+2. Click the interface/model (the item listed under the template name).
+3. **+ Add capability**.
+4. **Display name:** anything readable. **Name:** the **exact** key from the example (e.g. `touch`) — it must match the sketch character-for-character.
+5. **Capability type:** **Telemetry**. **Schema:** **Double** (use **Integer** for 0/1 values; **String** for text like `message`).
+6. **Save.**
+
+### B) Add a control switch (a writable property the *dashboard sets*)
+Same steps 1–4 as above, then:
+5. **Capability type:** **Property**. **Schema:** **Boolean**. Tick **Writable**.
+6. **Save.**
+
+### C) Make it appear + go live — do this after ANY change
+1. **Views** (left menu of the template) → **Generate default views** → **Generate**. This builds the charts for telemetry **and the form where writable switches appear**.
+2. **Publish** (top bar) → confirm.
+> ⚠️ Skipping **Generate default views** is the #1 reason a control switch never shows up on the device page.
+
+### D) See a value / flip a switch (on the actual device)
+- **Devices → [your device].** Telemetry shows on the **Overview** (chart) view and under the **Raw data** tab.
+- A writable switch is on the **form view** (created by Generate default views): flip it, then click **Save** — that's what actually sends it to the board.
+
+### The master capability list — add these to your one template
+Add each **once**. *Telemetry* = a value the board reports; *Property (Writable)* = a switch you control.
+
+| Name (must match exactly) | Add as | Schema | Used by |
+|---|---|---|---|
+| `message` *(optional)* | Telemetry | String | Start Here 00 |
+| `touch` | Telemetry | Double | Send 01 |
+| `button` | Telemetry | Double | Send 02, Control 06 |
+| `water` | Telemetry | Double | Send 03, 14 |
+| `sound` | Telemetry | Double | Send 04 |
+| `light` | Telemetry | Double | Send 05, Control 04 |
+| `moisture` | Telemetry | Double | Send 06 |
+| `rotaryAngle` | Telemetry | Double | Send 07 |
+| `turbidity` | Telemetry | Double | Send 08 |
+| `temperature` | Telemetry | Double | Send 09, 10, Control 05 |
+| `humidity` | Telemetry | Double | Send 10, Control 05 |
+| `angle` | Telemetry | Double | Send 13 |
+| `distance` | Telemetry | Double | Send 15 |
+| `gas` | Telemetry | Double | Send 16 |
+| `motion` | Telemetry | Double | Send 17 |
+| `ledState` | **Property (Writable)** | Boolean | Control 01, 03, 04, 06, 07 |
+| `buzzerOn` | **Property (Writable)** | Boolean | Control 02 |
+| `muted` | Property (Writable) | Boolean | Control 05 |
+
+> ⚠️ **One name = one type.** `ledState` and `buzzerOn` are used *both* ways — a
+> **writable switch** in the Control examples and a plain **telemetry report** in some
+> Send examples (11 / 12 / 14). A template can't have the same name as both Telemetry
+> *and* Property, so add them as **writable Properties** (as above). Those Send
+> examples still send the values — you'll just see them under the device's **Raw data**
+> tab instead of as a chart tile. Everything else stays one-name-one-capability.
+
+> 📟 The **React To Another Device** examples need **no capability on the reader
+> board** — instead you make an **API token** (steps are in those examples). The
+> *sender* board only needs `temperature` telemetry, already in the list above.
+
+*Each example section below still names the exact capability it uses — use the
+procedures above to add it (or add everything up front from the table).*
+
+---
+
 ## 1 · Start Here
 
 ### Start Here · 00 — Connection Test (`00_ConnectionTest`)
@@ -42,7 +115,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** nothing to plug in — this example uses no sensor.
 - **ESP32:** nothing to plug in — this example uses no sensor.
-**Set up in IoT Central (one-time):** This sketch sends a text line with `AzureIoT.publishText("message", ...)`, not a numeric telemetry. You don't strictly need to add anything to the template — just open the device and watch it arrive under the **Raw data** tab. If you'd like it to show as a named field, you can optionally go to your device template: **+ Add capability → Telemetry** named exactly **`message`**, type **String** → Save, then **Views → Generate default views**, then **Publish**.
+**Set up in IoT Central (one-time):** **Nothing to add** — this sketch sends a text line via `AzureIoT.publishText("message", ...)`, so just open **Devices → [your device] → Raw data** and watch the messages arrive. *(Optional, to show it as a named field: **Device templates → open your template → its model → + Add capability → Telemetry** named exactly **`message`**, Schema **String** → Save, then **Views → Generate default views** → **Publish**.)*
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 1_Start_Here → 00_ConnectionTest**.
 2. Click the **`config.h`** tab and fill in the five values: `WIFI_SSID`, `WIFI_PASSWORD`, `IOTC_ID_SCOPE`, `IOTC_DEVICE_ID`, `IOTC_DEVICE_KEY` (from IoT Central: Devices > your device > Connect).
@@ -60,7 +133,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Touch Sensor into port **D3**.
 - **ESP32:** **GPIO 15** (selected automatically). Power it from 3V3, not 5V — ESP32 isn't 5V-tolerant.
-**Set up in IoT Central (one-time):** In your device template: **+ Add capability → Telemetry** named exactly **`touch`**, type **Double** (Integer is fine for 0/1) → Save. Then **Views → Generate default views**, then **Publish**. The value then shows on the device's page.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`touch`**, type **Double** (Integer is fine for 0/1) → Save. Then **Views → Generate default views**, then **Publish**. The value then shows on the device's page.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 01_TouchSensor**.
 2. Click the **`config.h`** tab and fill in the five values.
@@ -74,7 +147,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Button into port **D4**.
 - **ESP32:** **GPIO 4** (selected automatically — the sketch uses digital pin 4 on both boards). Power it from 3V3, not 5V — ESP32 isn't 5V-tolerant.
-**Set up in IoT Central (one-time):** In your device template: **+ Add capability → Telemetry** named exactly **`button`**, type **Double** (Integer is fine for 0/1) → Save. Then **Views → Generate default views**, then **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`button`**, type **Double** (Integer is fine for 0/1) → Save. Then **Views → Generate default views**, then **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 02_ButtonSensor**.
 2. Click the **`config.h`** tab and fill in the five values.
@@ -88,7 +161,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Water Sensor into port **D5**.
 - **ESP32:** **GPIO 5** (selected automatically). Power it from 3V3, not 5V — ESP32 isn't 5V-tolerant.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`water`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`water`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 03_WaterSensor**.
 2. Fill in `config.h`; **Upload**; open **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -101,7 +174,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Sound Sensor into port **A2**.
 - **ESP32:** **GPIO 34** (selected automatically). Power from 3V3, not 5V. ESP32's ADC is 12-bit; the math is Uno-calibrated, so values read differently — re-tune thresholds.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`sound`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`sound`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 04_SoundSensor**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -114,7 +187,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Light Sensor into port **A4**.
 - **ESP32:** **GPIO 35** (selected automatically). Power from 3V3, not 5V. ESP32's ADC is 12-bit; re-tune thresholds.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`light`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`light`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 05_LightSensor**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -127,7 +200,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Moisture Sensor into port **A5**.
 - **ESP32:** **GPIO 32** (selected automatically). Power from 3V3, not 5V. ESP32's ADC is 12-bit; re-tune thresholds.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`moisture`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`moisture`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 06_MoistureSensor**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -140,7 +213,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Rotary Angle Sensor into port **A1**.
 - **ESP32:** **GPIO 33** (selected automatically). Power from 3V3, not 5V. ESP32's ADC is 12-bit; re-tune thresholds.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`rotaryAngle`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`rotaryAngle`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 07_RotaryAngleSensor**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -153,7 +226,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Turbidity Sensor into port **A3**.
 - **ESP32:** **GPIO 39** (selected automatically). Power from 3V3, not 5V. ESP32's ADC is 12-bit; re-tune thresholds.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`turbidity`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`turbidity`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 08_TurbiditySensor**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -166,7 +239,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Temperature Sensor into port **A0**.
 - **ESP32:** **GPIO 36** (selected automatically). Power from 3V3, not 5V. ESP32's ADC is 12-bit; re-tune the thermistor math.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`temperature`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`temperature`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 09_TemperatureSensor**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -179,7 +252,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the DHT11 module into **D2**.
 - **ESP32:** GPIO 2 (selected automatically). Power it from 3V3, not 5V — ESP32 isn't 5V-tolerant.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`humidity`** (Double) → Save; **+ Add capability → Telemetry** named exactly **`temperature`** (Double) → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`humidity`** (Double) → Save; **+ Add capability → Telemetry** named exactly **`temperature`** (Double) → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 10_TemperatureHumiditySensor**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -192,7 +265,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Grove LED into **D7**.
 - **ESP32:** GPIO 2 (the onboard LED, selected automatically) — no external LED needed.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`ledState`**, type **Double** (Integer ok for 0/1) → Save. Then **Views → Generate default views** → **Publish**. *(Note: here `ledState` is plain telemetry — a report — not a writable switch.)*
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`ledState`**, type **Double** (Integer ok for 0/1) → Save. Then **Views → Generate default views** → **Publish**. *(Note: here `ledState` is plain telemetry — a report — not a writable switch.)*
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 11_LedStatusReport**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -205,7 +278,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Grove Buzzer into **D6**.
 - **ESP32:** GPIO 4 (selected automatically).
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`buzzerOn`**, type **Double** (Integer ok) → Save. Then **Views → Generate default views** → **Publish**. *(Plain telemetry, not a switch.)*
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`buzzerOn`**, type **Double** (Integer ok) → Save. Then **Views → Generate default views** → **Publish**. *(Plain telemetry, not a switch.)*
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 12_BuzzerStatusReport**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -218,7 +291,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** Rotary Angle Sensor into **A1**, LED into **D3**.
 - **ESP32:** rotary on GPIO 34 (ADC1), LED on GPIO 2 (selected automatically). ESP32 ADC is 12-bit; the Uno-calibrated `/1023` math reads differently — re-tune.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`angle`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`angle`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 13_RotaryAngleLedDimmer**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -231,7 +304,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** Water Sensor into **D5**, Buzzer into **D6**, LED into **D7**.
 - **ESP32:** Water on GPIO 5, Buzzer on GPIO 4, LED on GPIO 2 (selected automatically). Power the water sensor from 3V3, not 5V.
-**Set up in IoT Central (one-time):** add three **Telemetry** capabilities, type **Double**, named exactly **`water`**, **`ledState`**, **`buzzerOn`** → Save each. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: add three **Telemetry** capabilities, type **Double**, named exactly **`water`**, **`ledState`**, **`buzzerOn`** → Save each. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 14_WaterAlarm**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -244,7 +317,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Ultrasonic Ranger into **D7**.
 - **ESP32:** GPIO 18 (selected automatically). Power it from 3V3, not 5V.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`distance`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`distance`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 15_UltrasonicDistance**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -257,7 +330,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Gas Sensor into **A1**.
 - **ESP32:** GPIO 34 (ADC1, selected automatically). ESP32 ADC is 12-bit; the Uno-calibrated `5.0/1023` math reads differently — change the divisor to `4095.0`, reference to `3.3`, and re-tune. Power from 3V3, not 5V.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`gas`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`gas`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 16_GasSensor**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -270,7 +343,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the PIR Motion Sensor into **D2**.
 - **ESP32:** GPIO 14 (selected automatically). Power it from 3V3, not 5V.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`motion`**, type **Double** (Integer ok) → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`motion`**, type **Double** (Integer ok) → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 17_PirMotion**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -283,7 +356,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Grove Button into **D4**; plug the LCD into any I2C port.
 - **ESP32:** button on GPIO 27 (selected automatically). The LCD is I2C — plug into any I2C port; no pin to set.
-**Set up in IoT Central (one-time):** **+ Add capability → Telemetry** named exactly **`button`**, type **Double** (Integer ok) → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`button`**, type **Double** (Integer ok) → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 18_ButtonLcd**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -304,7 +377,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Grove LED into **D7**.
 - **ESP32:** **GPIO 2** (the onboard LED, selected automatically — GPIO 7 is a flash pin and is never usable).
-**Set up in IoT Central (one-time):** In your device template: **+ Add capability → Property** named exactly **`ledState`**, type **Boolean**, tick **Writable** → **Save**. Then **Views → Generate default views** (THIS is what makes the toggle appear — skip it and there is no switch), then **Publish**. On the device page, flip **`ledState`** and click **Save**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Property** named exactly **`ledState`**, type **Boolean**, tick **Writable** → **Save**. Then **Views → Generate default views** (THIS is what makes the toggle appear — skip it and there is no switch), then **Publish**. On the device page, flip **`ledState`** and click **Save**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 01_LedCloudControl**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -318,7 +391,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Grove Buzzer into **D6**.
 - **ESP32:** **GPIO 4** (selected automatically — GPIO 6 is a flash pin and is never usable).
-**Set up in IoT Central (one-time):** **+ Add capability → Property** named exactly **`buzzerOn`**, type **Boolean**, tick **Writable** → **Save**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`buzzerOn`** and click **Save**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Property** named exactly **`buzzerOn`**, type **Boolean**, tick **Writable** → **Save**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`buzzerOn`** and click **Save**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 02_BuzzerCloudControl**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -332,7 +405,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** Sound Sensor into **A2**, LED into **D7**.
 - **ESP32:** sound on **GPIO 34** (ADC1), LED on **GPIO 2** (selected automatically — GPIO 7 is a flash pin). ESP32 ADC is 12-bit; re-tune `CLAP_THRESHOLD` (default 100).
-**Set up in IoT Central (one-time):** **+ Add capability → Property** named exactly **`ledState`**, **Boolean**, **Writable** → **Save**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`ledState`** and click **Save**. Because this sketch also calls `reportBoolProperty()`, the property updates when the BOARD changes it (a clap), not only from the cloud.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Property** named exactly **`ledState`**, **Boolean**, **Writable** → **Save**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`ledState`** and click **Save**. Because this sketch also calls `reportBoolProperty()`, the property updates when the BOARD changes it (a clap), not only from the cloud.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 03_ClapToToggleLed**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -346,7 +419,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** Light Sensor into **A4**, LED into **D7**.
 - **ESP32:** light on **GPIO 35** (ADC1), LED on **GPIO 2** (selected automatically — GPIO 7 is a flash pin). ESP32 ADC is 12-bit; re-tune `DARK_THRESHOLD_LOW` (280) and `DARK_THRESHOLD_HIGH` (320).
-**Set up in IoT Central (one-time):** **+ Add capability → Property** named exactly **`ledState`**, **Boolean**, **Writable** → **Save**. The sketch also calls `AzureIoT.publish("light", ...)` — add a **Telemetry** capability named **`light`**, type **Double**. Then **Views → Generate default views** → **Publish**. This sketch uses `reportBoolProperty()`, so the property updates when the light level crosses a threshold, not only from the cloud.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Property** named exactly **`ledState`**, **Boolean**, **Writable** → **Save**. The sketch also calls `AzureIoT.publish("light", ...)` — add a **Telemetry** capability named **`light`**, type **Double**. Then **Views → Generate default views** → **Publish**. This sketch uses `reportBoolProperty()`, so the property updates when the light level crosses a threshold, not only from the cloud.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 04_AutoNightLight**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -360,7 +433,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** DHT11 into **D2**, Buzzer into **D6**.
 - **ESP32:** DHT11 on **GPIO 2**, buzzer on **GPIO 4** (selected automatically — GPIO 6 is a flash pin). Power the DHT11 from **3V3, not 5V**.
-**Set up in IoT Central (one-time):** **+ Add capability → Property** named exactly **`muted`**, **Boolean**, **Writable** → **Save**. This sketch also publishes plain telemetry — add a **Telemetry** capability, type **Double**, for each of **`humidity`**, **`temperature`**, **`buzzerOn`**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`muted`** + **Save**. Note: **`buzzerOn`** is telemetry here (a read-only report of whether the buzzer is sounding), NOT a writable property — that's why it has a different name from the `muted` control.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Property** named exactly **`muted`**, **Boolean**, **Writable** → **Save**. This sketch also publishes plain telemetry — add a **Telemetry** capability, type **Double**, for each of **`humidity`**, **`temperature`**, **`buzzerOn`**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`muted`** + **Save**. Note: **`buzzerOn`** is telemetry here (a read-only report of whether the buzzer is sounding), NOT a writable property — that's why it has a different name from the `muted` control.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 05_ComfortAlarm**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -374,7 +447,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** Button into **D4**, LED into **D7**.
 - **ESP32:** button on **GPIO 4**, LED on **GPIO 2** (selected automatically — GPIO 7 is a flash pin).
-**Set up in IoT Central (one-time):** **+ Add capability → Property** named exactly **`ledState`**, **Boolean**, **Writable** → **Save**. The sketch also calls `AzureIoT.publish("button", ...)` — add a **Telemetry** capability named **`button`**, type **Double**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`ledState`** + **Save**. Because the sketch also calls `reportBoolProperty()`, the property updates when the BOARD changes it (a button press), not only from the cloud.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Property** named exactly **`ledState`**, **Boolean**, **Writable** → **Save**. The sketch also calls `AzureIoT.publish("button", ...)` — add a **Telemetry** capability named **`button`**, type **Double**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`ledState`** + **Save**. Because the sketch also calls `reportBoolProperty()`, the property updates when the BOARD changes it (a button press), not only from the cloud.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 06_ButtonLedTwoWaySync**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -388,7 +461,7 @@ Each example below tells you *exactly* which capability/property to add.
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Grove LED into **D7**; plug the LCD into any I2C port.
 - **ESP32:** LED on **GPIO 2** (selected automatically — GPIO 7 is a flash pin). The LCD is I2C — plug into any I2C port; no pin to set.
-**Set up in IoT Central (one-time):** **+ Add capability → Property** named exactly **`ledState`**, **Boolean**, **Writable** → **Save**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`ledState`** + **Save**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Property** named exactly **`ledState`**, **Boolean**, **Writable** → **Save**. Then **Views → Generate default views** → **Publish**. On the device page, flip **`ledState`** + **Save**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 07_LedLcdCloudControl**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
