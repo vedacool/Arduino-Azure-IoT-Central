@@ -135,8 +135,14 @@ switch for the LED projects.
    - A **Telemetry** named exactly **`temperature`**, type **Double**. *(Matches the sensor examples.)*
    - A **Property** named exactly **`ledState`**, type **Boolean**, and mark it
      **Writable**. *(This is the dashboard switch for the LED examples.)*
-4. Click **Publish** (top bar) and confirm. **A template must be published before
-   devices can use it.**
+4. **Make the toggle actually appear (the step almost everyone misses):** in the
+   template, go to **Views → Generate default views → Generate**. This builds a form
+   on the device page where the writable `ledState` switch shows up. **Without a
+   view, there is nowhere on the device page to flip the switch** — this is the #1
+   reason the Mode 2 examples "don't work."
+5. Click **Publish** (top bar) and confirm. **A template must be published before
+   devices can use it** — and **re-publish every time you change it** (add a
+   capability, generate views, etc.).
 
 > **Capability cheat-sheet — add these as you try more examples.** Each raw key a
 > sketch publishes needs a matching capability in this template (then **Publish**
@@ -265,66 +271,104 @@ analog sensors `04`–`09` and `16_GasSensor` (sound, light, temperature, gas…
 
 ## Mode 2 — Cloud → Device: control the board from the dashboard 📥
 
-Now the other direction: a switch on the IoT Central dashboard controls something
-on the board, via `AzureIoT.onBoolProperty("name", callback)`. It uses the
-**`ledState`** switch you created in Part B3.
+Now the *other* direction — a switch on the IoT Central website turns something on
+the board on and off, using `AzureIoT.onBoolProperty("name", callback)`. We'll use
+the **`ledState`** switch from your template (Part B3).
 
-**Do this one — `01_LedCloudControl` ⭐ (the "wow" moment):**
-- **Wire:** Grove LED → **D7** (Uno) / **GPIO 2** (ESP32 onboard LED — may need no wiring).
-- **Do:** upload, then open your device in IoT Central. If the switch isn't there,
-  your template needs the **writable `ledState` property**, **Published** (Part B3).
-- **See:** flip `ledState` on the dashboard → it shows **Pending**, the LED changes,
-  then it flips to **✓ Accepted**. Serial: `matched registered property 'ledState' = true`.
-- **Try:** power the board **off**, flip the switch on the dashboard, power back
-  **on** — it picks up the switch's state the instant it reconnects. (That's what
-  makes it a *property*, not a one-shot command.)
+### `01_LedCloudControl` — step by step
 
-**Same idea, more to explore:** `02_BuzzerCloudControl` (add a `buzzerOn` writable
-property to your template first). `03`/`04`/`05` combine the board's *own* logic
-with cloud control. `06_ButtonLedTwoWaySync` is the hardest — a physical button
-**and** the dashboard both control one LED and stay in sync.
+1. **Check your template is ready** (Part B3). It must have: the **writable
+   `ledState` Boolean property**, a **generated view**, and be **Published**. If you
+   skipped *"Views → Generate default views"*, do it now and **Publish** again —
+   *that view is what makes the toggle appear on the device page.*
+2. **Open the example:** File → Examples → AzureIoT → **3_Control_From_Cloud →
+   01_LedCloudControl**.
+3. **Edit `config.h`** — the same five Wi-Fi + Azure values as Part C.
+4. **Wire the LED:** Grove LED → **D7** on the Uno; on **ESP32** it uses the
+   **onboard LED (GPIO 2)**, so you may not need to wire anything.
+5. **Upload**, open the **Serial Monitor at 9600 baud**, and wait for `MQTT connected.`
+6. **Flip the switch in IoT Central:** **Devices → your device →** open the tab/form
+   that shows the `ledState` toggle (the view you generated) → turn `ledState`
+   **On** → click **Save**.
+7. **Watch it happen:** on the website the property goes **Pending → ✓ Accepted**,
+   the **LED turns on**, and the Serial Monitor prints
+   `matched registered property 'ledState' = true`. Turn it **Off** → LED off.
+8. **The clever bit:** power the board **off**, flip the switch **on** on the website,
+   then power the board **back on** — it comes up with the LED already on, by itself.
+   That's what makes it a *property* (a remembered setting), not a one-shot command.
+
+> 🛑 **If there's no toggle on the device page at all:** your template is missing the
+> writable property, missing a generated view, or wasn't re-published. Go back to
+> step 1 — this is the most common snag.
+
+**Same idea, more to explore:**
+- **`07_LedLcdCloudControl`** — same LED control, but it *also* shows **"LED: ON/OFF"
+  on a Grove LCD** (needs the **"Grove - LCD RGB Backlight"** library, ≥ 1.0.2).
+- **`02_BuzzerCloudControl`** — a buzzer instead of an LED (first add a `buzzerOn`
+  writable property to your template, the same way you added `ledState`, and
+  re-generate views + publish).
+- **`03` / `04` / `05`** — the board's *own* logic (a clap, a light level, a
+  temperature) **plus** a cloud override. **`06_ButtonLedTwoWaySync`** — a physical
+  button **and** the dashboard both control one LED and stay in sync (the hardest).
 
 ---
 
 ## Mode 3 — Azure data → Device reacts: one board reacts to another's data 🔁
 
-The third mode reads a **different** device's data out of Azure and reacts to it —
-e.g. **Board B sounds a buzzer when Board A's temperature goes above 30 °C**,
-without Board B having its own thermometer. This is
-`AzureIoT.onRemoteTelemetry(...)`, in example **`01_RemoteTemperatureAlarm`** (the *React To Another Device* group).
+The third mode has one board read a **different** board's data out of Azure and
+react to it — e.g. **Board B sounds a buzzer when Board A's temperature goes above
+30 °C**, even though Board B has no thermometer of its own. This is
+`AzureIoT.onRemoteTelemetry(...)`, in **`01_RemoteTemperatureAlarm`**.
 
-Two things make this mode different from the others:
-- **It needs two devices.** Board A runs a Mode-1 temperature example (e.g.
-  `09_TemperatureSensor`) and publishes `temperature`; Board B runs `01_RemoteTemperatureAlarm` and
-  watches it. In a class, Board A can be a **classmate's board** — just use its
-  Device ID.
-- **It uses a different key and it *polls*.** Azure won't let one device subscribe
-  to another's live stream (a security boundary), so Board B checks every few
-  seconds using an app-wide **API token** — not a device key. While a board is in
-  this mode it *only* pulls; it does **not** send its own telemetry.
+> ⚠️ **This one needs TWO boards** (and two devices in IoT Central):
+> - **Board A — the sender.** A normal Mode-1 board that publishes `temperature`.
+>   In class this can be a **classmate's** board.
+> - **Board B — the reader.** Runs `01_RemoteTemperatureAlarm`, watches Board A's
+>   reading, and buzzes. **This is the board you're setting up.**
 
-**Extra one-time setup — create an API token:**
-In IoT Central: **Permissions → API tokens → + New →** name it → role
-**App Operator** (least-privileged role that can read telemetry) → **Generate**.
-**Copy the whole token string** (it starts with `SharedAccessSignature ...`) —
-you only get to see it once.
+### Part 1 — get Board A sending (skip if it already is)
+1. On **Board A**, upload **2_Send_To_Cloud → 09_TemperatureSensor**, set up with
+   **its own** device (say, a device named `arduino1`) — exactly like Part C / Mode 1.
+2. Confirm it's live: IoT Central → **Devices → Board A's device → Raw data** shows
+   `temperature` arriving. **Write down Board A's Device ID** — Board B needs it.
 
-**Configure `01_RemoteTemperatureAlarm` on Board B:**
-- In its **`config.h`** set your Wi-Fi, plus:
-  - `IOTC_REMOTE_APP_SUBDOMAIN` — your app's subdomain (the `myapp` in
-    `myapp.azureiotcentral.com`, from Part B2)
-  - `IOTC_REMOTE_API_TOKEN` — the full token you just copied
-  - *(leave `IOTC_ID_SCOPE`/`IOTC_DEVICE_ID`/`IOTC_DEVICE_KEY` untouched — a
-    pull-only board never uses them)*
-- In `01_RemoteTemperatureAlarm.ino`, set `REMOTE_DEVICE_ID` to **Board A's** Device ID.
-- **Wire:** Buzzer → **D6** (Uno) / **GPIO 4** (ESP32).
+### Part 2 — set up Board B (the reader)
+3. **Create an API token** — this is a *different* credential from a device key; it
+   lets a board read the whole app's telemetry. IoT Central → **Permissions → API
+   tokens → + New** → name it → role **App Operator** → **Generate** → **copy the
+   whole token string now** (it starts with `SharedAccessSignature ...`; you can't
+   view it again later).
+4. **Find your app subdomain** — the first part of the app's web address, e.g. for
+   `myapp.azureiotcentral.com` the subdomain is just `myapp`.
+5. **Open the example:** File → Examples → AzureIoT → **4_React_To_Another_Device →
+   01_RemoteTemperatureAlarm**.
+6. **Edit `config.h`:**
+   - `WIFI_SSID` / `WIFI_PASSWORD` — your Wi-Fi (Board B still needs internet).
+   - `IOTC_REMOTE_APP_SUBDOMAIN` — the subdomain from step 4 (just `myapp`, not the URL).
+   - `IOTC_REMOTE_API_TOKEN` — the full token from step 3.
+   - **Leave `IOTC_ID_SCOPE` / `IOTC_DEVICE_ID` / `IOTC_DEVICE_KEY` as their
+     placeholders** — Board B never connects its *own* identity (it only reads), so
+     these three are unused here.
+7. **Point it at Board A:** in `01_RemoteTemperatureAlarm.ino` (near the top), set
+   `REMOTE_DEVICE_ID` to **Board A's Device ID** from step 2.
+8. **Wire Board B's buzzer:** Grove Buzzer → **D6** (Uno) / **GPIO 4** (ESP32).
+9. **Upload Board B**, open the **Serial Monitor at 9600 baud**.
 
-**See:** Board B's Serial prints `Remote temperature: 24.50` every ~15 s, and the
-buzzer sounds once Board A's reading passes 30 °C (and stops below 29 °C).
+### What you'll see
+Board B prints `Remote temperature: 24.50` every ~15 seconds — it's **polling** Board
+A's latest value through Azure — and the buzzer **sounds once Board A's temperature
+passes 30 °C** (and goes quiet below 29 °C). Warm Board A's sensor with your fingers
+to push it over the line and hear it.
 
-> 💡 Because this is polling, there's a delay (up to your interval — default 15 s,
-> minimum 1 s). For *instant* reactions the right tool is an IoT Central **Rule**;
-> this mode is for "check periodically and react."
+> 📟 **Prefer a screen to a buzzer?** `02_RemoteTemperatureLcd` does the same thing
+> but shows Board A's temperature live on a **Grove LCD** (needs the
+> **"Grove - LCD RGB Backlight"** library, ≥ 1.0.2).
+
+> 💡 **Two things students always ask:**
+> - *"Board B doesn't show up as sending data."* Correct — it's **pull-only**: it
+>   never sends its own telemetry, it only *reads* Board A's.
+> - *"There's a lag."* Yes — it **polls** (default every 15 s, minimum 1 s). For an
+>   instant reaction you'd use an IoT Central **Rule**; this mode is "check and react."
 
 ---
 
@@ -339,7 +383,8 @@ problem is Wi-Fi/Azure/credentials, not your sensor.
 | "DPS provisioning FAILED" | Re-check the three Azure values in `config.h`. On Uno, you may need the certificate step (box in Part C). |
 | Uploads fail / wrong port | Pick the right **Tools → Port**; close the Serial Monitor and try again. |
 | Serial shows `Published:` but nothing on the dashboard | The telemetry name needs a matching **capability** in your template (Part B3), then **Republish**. Try a hard browser refresh. |
-| The `ledState` switch isn't on the dashboard | Your template needs the **writable `ledState` property**, and must be **Published** (Part B3). |
+| The `ledState` switch isn't on the device page at all | Your template needs **both** the writable `ledState` property **and a generated View** (Views → Generate default views), then **Publish**. **No view = the property exists but there's nowhere to flip it** — the usual cause (Part B3). |
+| The toggle is there but nothing happens on the board | Check the Serial Monitor (9600) says `MQTT connected`, and that you clicked **Save** after flipping it. |
 
 The [README troubleshooting table](README.md#troubleshooting) has the full list.
 
