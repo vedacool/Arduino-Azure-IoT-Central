@@ -96,6 +96,8 @@ Within each group the examples are numbered roughly easiest-to-hardest. The sens
 
 **If you're on ESP32** (or any board without a Grove Base Shield): every example auto-selects ESP32-safe pins via an `#if defined(ARDUINO_ARCH_ESP32)` block near the top. This matters because the Grove/Uno pins are **actively unsafe** on ESP32 — **GPIO 6–11 are wired to its SPI flash** (the LED/buzzer examples' D7/D6 would crash the board), and **GPIO 3 is its Serial RX** (the touch example's D3) — so on ESP32 they default to GPIO 2 (LED), 4 (buzzer), 15 (touch), etc. The **analog** examples additionally need a valid **ADC1** pin (some Grove names like `A1`/`A2` aren't even defined on ESP32 and won't compile), and the ESP32's 12-bit ADC (0–4095, different reference) makes their Uno-calibrated thresholds/math **read wrong until you re-tune them** — see each sketch's ESP32 pin comment. Also **power Grove sensors from 3V3, not 5V, on ESP32** — its GPIOs aren't 5 V-tolerant. `00_ConnectionTest` needs none of this.
 
+> 📟 **Three examples use a Grove LCD RGB Backlight** (one per mode — `18_ButtonLcd`, `07_LedLcdCloudControl`, `02_RemoteTemperatureLcd`). They need the extra **"Grove - LCD RGB Backlight"** library, **v1.0.2 or newer** (Library Manager) — 1.0.2 auto-detects both the v4.0 and v5.0 hardware modules (older versions only drive the v4.0 backlight). The LCD is I2C — plug it into any I2C port on the shield, no pin to set. The DHT examples (`10`, `05`) similarly need the Grove DHT library. These are documented per-sketch, not forced on everyone via `depends`.
+
 ### 1 · Start Here
 | # | Example | What it demonstrates | Hardware / pin |
 |---|---|---|---|
@@ -121,6 +123,7 @@ Within each group the examples are numbered roughly easiest-to-hardest. The sens
 | 15 | `UltrasonicDistance` | Single-pin ultrasonic distance, no extra library | Grove Ultrasonic Ranger, D7 |
 | 16 | `GasSensor` | Analog gas/smoke level (relative, not ppm) | Grove Gas MQ2, A1 |
 | 17 | `PirMotion` | Digital motion detect, publishes 1/0 | Grove PIR Motion, D2 |
+| 18 | `ButtonLcd` | Button state shown on an LCD + published (needs LCD lib) | Grove Button D4 + Grove LCD (I2C) |
 
 ### 3 · Control From Cloud — cloud → device (writable properties)
 | # | Example | What it demonstrates | Hardware / pin (Uno) |
@@ -131,11 +134,13 @@ Within each group the examples are numbered roughly easiest-to-hardest. The sens
 | 04 | `AutoNightLight` | Sensor-threshold logic + cloud override | Light (A4) → LED (D7) |
 | 05 | `ComfortAlarm` | Same pattern, harder DHT11 sensor | Temp & Humidity (D2) → Buzzer (D6) |
 | 06 | `ButtonLedTwoWaySync` | Hardest: sensor + actuator + two-way sync | Button (D4) + LED (D7) |
+| 07 | `LedLcdCloudControl` | Cloud toggle drives LED **and** shows state on an LCD (needs LCD lib) | Grove LED D7 + Grove LCD (I2C) |
 
 ### 4 · React To Another Device — react to another device's telemetry
 | # | Example | What it demonstrates | Hardware / pin (Uno) |
 |---|---|---|---|
 | 01 | `RemoteTemperatureAlarm` | Read a DIFFERENT device's telemetry via REST polling (v1.1+) | Buzzer, D6 (no local sensor) |
+| 02 | `RemoteTemperatureLcd` | Show another device's temperature live on an LCD (needs LCD lib) | Grove LCD (I2C), no local sensor |
 
 Every example is the same three-part shape:
 ```cpp

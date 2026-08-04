@@ -1,0 +1,37 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// This file is tracked in git WITH the placeholder values below, on purpose
+// -- so this example compiles the moment you download it, no copy-a-file
+// step needed (same pattern Arduino's own examples use for
+// arduino_secrets.h). Just edit the values in place.
+//
+// If you're developing a fork of THIS repo itself (not just using it as a
+// library), remember this file is no longer gitignored: don't commit your
+// real Wi-Fi password or Azure key here. For your own separate project
+// that happens to use this library, this doesn't apply -- there's no git
+// repo tracking your Arduino sketch folder unless you make one yourself.
+
+// ---- Wi-Fi ----
+static const char WIFI_SSID[]     = "<your-ssid>";
+static const char WIFI_PASSWORD[] = "<your-password>";
+
+// ---- Azure IoT Central device identity (THIS device's own connection) ----
+// NOT ACTUALLY USED by this example -- onRemoteTelemetry() is registered in
+// the .ino before begin(), which puts this device in PULL-ONLY MODE (Wi-Fi
+// only, no DPS/MQTT). Left as placeholders; begin() still requires something
+// be passed for these three, but their content is ignored in this mode.
+static const char IOTC_ID_SCOPE[]    = "<ID Scope, e.g. 0ne00XXXXXX>";
+static const char IOTC_DEVICE_ID[]   = "<Device ID>";
+static const char IOTC_DEVICE_KEY[]  = "<Primary or computed device key, base64>";
+
+// ---- Remote telemetry access (a DIFFERENT credential -- see AzureIoT.h's
+// onRemoteTelemetry() for why this is separate from the device identity
+// above) ----
+// From IoT Central: Permissions > API tokens > New > role "App Operator".
+// IOTC_REMOTE_APP_SUBDOMAIN is just the subdomain part -- e.g. if your app
+// is at "myapp.azureiotcentral.com", this is "myapp", not the full URL.
+static const char IOTC_REMOTE_APP_SUBDOMAIN[] = "<your-app-subdomain>";
+static const char IOTC_REMOTE_API_TOKEN[]     = "<SharedAccessSignature sr=...&sig=...&skn=...&se=...>";
+
+#endif
