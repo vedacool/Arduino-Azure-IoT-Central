@@ -43,7 +43,15 @@ new template per example. (First-time app + device + template creation is in
 the capability details.)
 
 Almost everything lives in **Device templates → [your template] → Model** and in
-**Views**. These are the only four procedures you need:
+**Views**. These are the only four procedures you need.
+
+> 📸 **Screenshots:** the slots below are placeholders — drop your own screenshots
+> into a `docs/img/` folder (see [`docs/img/README.md`](docs/img/README.md) for the
+> shot list) and replace each *"Screenshot slot"* line with an image, e.g.
+> `![Add capability](docs/img/add-capability.png)`. For reference visuals right now,
+> Microsoft's official walkthrough is here:
+> [Add capabilities to a device template](https://learn.microsoft.com/azure/iot-central/core/howto-edit-device-template)
+> and [Views](https://learn.microsoft.com/azure/iot-central/core/howto-set-up-template#views).
 
 ### A) Add a telemetry field (a value the board *sends up*)
 1. **Device templates** → click **[your template]** (e.g. `Grove Board`).
@@ -52,6 +60,8 @@ Almost everything lives in **Device templates → [your template] → Model** an
 4. **Display name:** anything readable. **Name:** the **exact** key from the example (e.g. `touch`) — it must match the sketch character-for-character.
 5. **Capability type:** **Telemetry**. **Schema:** **Double** (use **Integer** for 0/1 values; **String** for text like `message`).
 6. **Save.**
+
+> 📸 *Screenshot slot — `docs/img/add-capability.png`: the **+ Add capability** panel with Name, Capability type, and Schema filled in.*
 
 ### B) Add a control switch (a writable property the *dashboard sets*)
 Same steps 1–4 as above, then:
@@ -63,9 +73,13 @@ Same steps 1–4 as above, then:
 2. **Publish** (top bar) → confirm.
 > ⚠️ Skipping **Generate default views** is the #1 reason a control switch never shows up on the device page.
 
+> 📸 *Screenshot slot — `docs/img/generate-views-publish.png`: the **Views → Generate default views** screen (and/or the **Publish** button).*
+
 ### D) See a value / flip a switch (on the actual device)
 - **Devices → [your device].** Telemetry shows on the **Overview** (chart) view and under the **Raw data** tab.
 - A writable switch is on the **form view** (created by Generate default views): flip it, then click **Save** — that's what actually sends it to the board.
+
+> 📸 *Screenshot slot — `docs/img/device-page.png`: the device page showing a telemetry chart and a writable switch with its **Save** button.*
 
 ### The master capability list — add these to your one template
 Add each **once**. *Telemetry* = a value the board reports; *Property (Writable)* = a switch you control.
