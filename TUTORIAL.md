@@ -148,7 +148,8 @@ switch for the LED projects.
 > sketch publishes needs a matching capability in this template (then **Publish**
 > the template again) to show on the dashboard.
 >
-> Add as **Telemetry → Double** (the on/off ones read 1/0, so Integer is fine too) —
+> Add as **Telemetry → Double** (use **Double** even for the on/off 1/0 values — the
+> sketches send decimals, so an Integer schema can mismatch and hide the reading) —
 > add whichever the example you're running publishes (its `.ino`/Serial shows the key):
 > `touch` · `button` · `water` · `sound` · `light` · `moisture` · `rotaryAngle` ·
 > `turbidity` · `temperature` · `humidity` · `angle` · `distance` · `gas` · `motion`.

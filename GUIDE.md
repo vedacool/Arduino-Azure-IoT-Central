@@ -55,11 +55,16 @@ Almost everything lives in **Device templates → [your template] → Model** an
 
 ### A) Add a telemetry field (a value the board *sends up*)
 1. **Device templates** → click **[your template]** (e.g. `Grove Board`).
-2. Click the interface/model (the item listed under the template name).
+2. Click the **model** — the row tagged **Root**, named after your template.
 3. **+ Add capability**.
 4. **Display name:** anything readable. **Name:** the **exact** key from the example (e.g. `touch`) — it must match the sketch character-for-character.
-5. **Capability type:** **Telemetry**. **Schema:** **Double** (use **Integer** for 0/1 values; **String** for text like `message`).
+5. **Capability type:** **Telemetry**. **Schema:** **Double** for any number (use **String** only for text like `message`).
 6. **Save.**
+
+> 💡 **Always pick `Double` for numbers — even 0/1 values.** Every sketch sends
+> decimals, so an **Integer** schema can mismatch and hide the reading under the
+> device's **Unmodeled data** tab. If you don't see a **Schema** box, click the
+> **˅** at the right end of the capability row to expand it.
 
 > 📸 *Screenshot slot — `docs/img/add-capability.png`: the **+ Add capability** panel with Name, Capability type, and Schema filled in.*
 
@@ -88,7 +93,7 @@ Add each **once**. *Telemetry* = a value the board reports; *Property (Writable)
 |---|---|---|---|
 | `message` *(optional)* | Telemetry | String | Start Here 00 |
 | `touch` | Telemetry | Double | Send 01 |
-| `button` | Telemetry | Double | Send 02, Control 06 |
+| `button` | Telemetry | Double | Send 02, 18, Control 06 |
 | `water` | Telemetry | Double | Send 03, 14 |
 | `sound` | Telemetry | Double | Send 04 |
 | `light` | Telemetry | Double | Send 05, Control 04 |
@@ -147,7 +152,7 @@ procedures above to add it (or add everything up front from the table).*
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Touch Sensor into port **D3**.
 - **ESP32:** **GPIO 15** (selected automatically). Power it from 3V3, not 5V — ESP32 isn't 5V-tolerant.
-**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`touch`**, type **Double** (Integer is fine for 0/1) → Save. Then **Views → Generate default views**, then **Publish**. The value then shows on the device's page.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`touch`**, type **Double** → Save. Then **Views → Generate default views**, then **Publish**. The value then shows on the device's page.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 01_TouchSensor**.
 2. Click the **`config.h`** tab and fill in the five values.
@@ -161,7 +166,7 @@ procedures above to add it (or add everything up front from the table).*
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Button into port **D4**.
 - **ESP32:** **GPIO 4** (selected automatically — the sketch uses digital pin 4 on both boards). Power it from 3V3, not 5V — ESP32 isn't 5V-tolerant.
-**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`button`**, type **Double** (Integer is fine for 0/1) → Save. Then **Views → Generate default views**, then **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`button`**, type **Double** → Save. Then **Views → Generate default views**, then **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 02_ButtonSensor**.
 2. Click the **`config.h`** tab and fill in the five values.
@@ -279,7 +284,7 @@ procedures above to add it (or add everything up front from the table).*
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Grove LED into **D7**.
 - **ESP32:** GPIO 2 (the onboard LED, selected automatically) — no external LED needed.
-**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`ledState`**, type **Double** (Integer ok for 0/1) → Save. Then **Views → Generate default views** → **Publish**. *(Note: here `ledState` is plain telemetry — a report — not a writable switch.)*
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`ledState`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**. *(Note: here `ledState` is plain telemetry — a report — not a writable switch.)*
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 11_LedStatusReport**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -292,7 +297,7 @@ procedures above to add it (or add everything up front from the table).*
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Grove Buzzer into **D6**.
 - **ESP32:** GPIO 4 (selected automatically).
-**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`buzzerOn`**, type **Double** (Integer ok) → Save. Then **Views → Generate default views** → **Publish**. *(Plain telemetry, not a switch.)*
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`buzzerOn`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**. *(Plain telemetry, not a switch.)*
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 12_BuzzerStatusReport**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -357,7 +362,7 @@ procedures above to add it (or add everything up front from the table).*
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the PIR Motion Sensor into **D2**.
 - **ESP32:** GPIO 14 (selected automatically). Power it from 3V3, not 5V.
-**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`motion`**, type **Double** (Integer ok) → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`motion`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 17_PirMotion**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
@@ -370,7 +375,7 @@ procedures above to add it (or add everything up front from the table).*
 **Wire it:**
 - **Uno WiFi Rev2 (+ Grove shield):** plug the Grove Button into **D4**; plug the LCD into any I2C port.
 - **ESP32:** button on GPIO 27 (selected automatically). The LCD is I2C — plug into any I2C port; no pin to set.
-**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`button`**, type **Double** (Integer ok) → Save. Then **Views → Generate default views** → **Publish**.
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, and click its **model** interface, then: **+ Add capability → Telemetry** named exactly **`button`**, type **Double** → Save. Then **Views → Generate default views** → **Publish**.
 **In the Arduino IDE:**
 1. **File → Examples → AzureIoT → 2_Send_To_Cloud → 18_ButtonLcd**.
 2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
