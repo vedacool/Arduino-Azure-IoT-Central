@@ -38,7 +38,15 @@ int azureiot_http_request(SecureWiFiClient &client, const char *host,
                            const char *authHeader, const char *body, size_t bodyLen,
                            char *respBody, size_t respBodyCap) {
     configureSecureClient(client);
-    if (!client.connect(host, 443)) return -1;
+    if (!client.connect(host, 443)) {
+        // Free the half-open socket. On WiFiNINA (Uno WiFi Rev2) especially,
+        // leaving a failed connect unclosed leaks a socket inside the NINA
+        // firmware; enough of them and EVERY subsequent connect() fails with
+        // -1 while WiFi.status() still reads WL_CONNECTED -- the classic
+        // "polls fine for a while, then fails forever" symptom.
+        client.stop();
+        return -1;
+    }
 
     client.print(method);
     client.print(" ");

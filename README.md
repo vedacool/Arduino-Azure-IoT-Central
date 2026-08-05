@@ -241,7 +241,7 @@ void onRemoteTemperature(float value) {
 
 void setup() {
     AzureIoT.setRemoteAccess(IOTC_REMOTE_APP_SUBDOMAIN, IOTC_REMOTE_API_TOKEN); // call BEFORE begin()
-    AzureIoT.onRemoteTelemetry("temperature", "arduino1", onRemoteTemperature);  // call BEFORE begin()
+    AzureIoT.onRemoteTelemetry("temperature", IOTC_REMOTE_DEVICE_ID, onRemoteTemperature); // Device ID (not name), set in config.h; call BEFORE begin()
     AzureIoT.begin(...); // automatically runs in pull-only mode now (Wi-Fi + polling only)
 }
 

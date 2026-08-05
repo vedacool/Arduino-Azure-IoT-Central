@@ -507,9 +507,8 @@ procedures above to add it (or add everything up front from the table).*
 3. **Find your app subdomain:** the `myapp` in `myapp.azureiotcentral.com`.
 **In the Arduino IDE (Board B):**
 1. **File → Examples → AzureIoT → 4_React_To_Another_Device → 01_RemoteTemperatureAlarm**.
-2. Click the **`config.h`** tab; set `WIFI_SSID`/`WIFI_PASSWORD`, `IOTC_REMOTE_APP_SUBDOMAIN` (the subdomain), and `IOTC_REMOTE_API_TOKEN` (the full token). **Leave `IOTC_ID_SCOPE`/`IOTC_DEVICE_ID`/`IOTC_DEVICE_KEY` as placeholders** — this board is pull-only and doesn't use them.
-3. In the `.ino`, set **`REMOTE_DEVICE_ID`** (near the top, default `"arduino1"`) to **Board A's Device ID**.
-4. **Upload**, open **Serial Monitor at 9600 baud**.
+2. Click the **`config.h`** tab and set everything here (all settings live in `config.h` now): `WIFI_SSID`/`WIFI_PASSWORD`, `IOTC_REMOTE_APP_SUBDOMAIN` (the subdomain), `IOTC_REMOTE_API_TOKEN` (the full token), and **`IOTC_REMOTE_DEVICE_ID`** = **Board A's Device ID** — the lowercase **Device ID** (e.g. `arduino-wifi`), **not** its display name (e.g. `arduino wifi uno rev2`). The three identity values (`IOTC_ID_SCOPE`/`IOTC_DEVICE_ID`/`IOTC_DEVICE_KEY`) are **commented out** in `config.h` — you don't need them; this board is pull-only.
+3. **Upload**, open **Serial Monitor at 9600 baud**.
 **You'll see:** `Remote temperature: 24.50` printed every ~15 s (the polled value from Board A); when Board A's reading rises above 30 °C the buzzer sounds, and it goes quiet once the reading drops below 29 °C (a 1-degree dead band stops it chattering).
 **Try:** warm Board A's temperature sensor with your fingers to push it past 30 °C and watch Board B react.
 **Notes:** it **polls** (default every 15 s), so there's a lag; and Board B is **pull-only** — it never appears as sending its own data in IoT Central.
@@ -526,9 +525,8 @@ procedures above to add it (or add everything up front from the table).*
 3. **Find your app subdomain** (the `myapp` in `myapp.azureiotcentral.com`).
 **In the Arduino IDE (Board B):**
 1. **File → Examples → AzureIoT → 4_React_To_Another_Device → 02_RemoteTemperatureLcd**.
-2. Set `WIFI_SSID`/`WIFI_PASSWORD`, `IOTC_REMOTE_APP_SUBDOMAIN`, `IOTC_REMOTE_API_TOKEN` in `config.h` (leave the three identity values as placeholders).
-3. In the `.ino`, set **`REMOTE_DEVICE_ID`** to **Board A's Device ID**.
-4. **Upload**, open **Serial Monitor at 9600 baud**.
+2. In `config.h` set `WIFI_SSID`/`WIFI_PASSWORD`, `IOTC_REMOTE_APP_SUBDOMAIN`, `IOTC_REMOTE_API_TOKEN`, and **`IOTC_REMOTE_DEVICE_ID`** = **Board A's Device ID** (the lowercase **Device ID** like `arduino-wifi`, **not** its display name). The three identity values are commented out in `config.h` — you don't need them.
+3. **Upload**, open **Serial Monitor at 9600 baud**.
 **You'll see:** the LCD first shows `Waiting for` / `remote data...`; then every ~15 s it refreshes to `Remote temp:` on the top row and the value plus ` C` below (e.g. `24.50 C`). The same value prints to Serial as `Remote temperature: 24.50`.
 **Try:** warm Board A's sensor to push it past 30 °C and watch the number on Board B's LCD climb.
 **Notes:** it **polls** (default every 15 s), so there's a lag; and Board B is **pull-only** — it never appears as sending its own data in IoT Central.

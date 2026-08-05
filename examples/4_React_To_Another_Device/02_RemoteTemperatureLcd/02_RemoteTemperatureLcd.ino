@@ -13,7 +13,8 @@
 // 1. Generate an IoT Central "API token" -- Permissions > API tokens > New >
 //    role "App Operator" -- and put it in config.h as IOTC_REMOTE_API_TOKEN,
 //    with IOTC_REMOTE_APP_SUBDOMAIN (your app's subdomain).
-// 2. Set REMOTE_DEVICE_ID below to the device publishing the "temperature".
+// 2. In config.h, set IOTC_REMOTE_DEVICE_ID to the Device ID (NOT the display
+//    name) of the device publishing the "temperature".
 //
 // NEEDS ONE EXTRA LIBRARY: the Seeed "Grove - LCD RGB Backlight" library,
 // version 1.0.2 or newer (Library Manager). 1.0.2+ auto-detects both the
@@ -24,8 +25,6 @@
 #include "config.h"
 #include <Wire.h>
 #include "rgb_lcd.h"
-
-const char *REMOTE_DEVICE_ID = "arduino1"; // change to the device you want to watch
 
 rgb_lcd lcd;
 
@@ -51,11 +50,18 @@ void setup() {
 
     // Must be called BEFORE begin() -- see AzureIoT.h for the full design.
     AzureIoT.setRemoteAccess(IOTC_REMOTE_APP_SUBDOMAIN, IOTC_REMOTE_API_TOKEN);
-    AzureIoT.onRemoteTelemetry("temperature", REMOTE_DEVICE_ID, onRemoteTemperature);
+    AzureIoT.onRemoteTelemetry("temperature", IOTC_REMOTE_DEVICE_ID, onRemoteTemperature);
+
+    // Optional: how often to poll (default 15000ms, floor 1000ms). On Uno
+    // WiFi Rev2, if you see repeated "poll FAILED ... HTTP status -1", raise
+    // this (e.g. 60000) -- fewer TLS handshakes ease the WiFiNINA module.
+    // AzureIoT.setRemotePollInterval(60000);
 
     // Pull-only mode (onRemoteTelemetry registered above): only WIFI_SSID/
-    // WIFI_PASSWORD matter here; the three IOTC_* identity values are unused.
-    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
+    // WIFI_PASSWORD matter here. The identity args are ignored, so we pass
+    // empty strings (the three IOTC_* identity values are commented out in
+    // config.h).
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, "", "", "");
 }
 
 void loop() {

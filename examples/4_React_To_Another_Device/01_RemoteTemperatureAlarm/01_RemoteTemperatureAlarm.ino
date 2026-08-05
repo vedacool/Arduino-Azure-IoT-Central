@@ -34,8 +34,9 @@
 //    IOTC_REMOTE_APP_SUBDOMAIN (your app's subdomain, e.g. "myapp" from
 //    "myapp.azureiotcentral.com") and IOTC_REMOTE_API_TOKEN (the full
 //    token string, including "SharedAccessSignature ...").
-// 3. Change REMOTE_DEVICE_ID below to the actual device ID of whichever
-//    device is publishing the "temperature" you want to watch.
+// 3. In config.h, set IOTC_REMOTE_DEVICE_ID to the actual Device ID (NOT the
+//    display name) of whichever device is publishing the "temperature" you
+//    want to watch.
 
 #include <AzureIoT.h>
 #include "config.h"
@@ -45,7 +46,6 @@ const int PIN_BUZZER = 4;   // ESP32: safe GPIO. GPIO 6 is a flash pin on ESP32 
 #else
 const int PIN_BUZZER = 6;   // Uno WiFi Rev2 + Grove Base Shield: Grove D6
 #endif
-const char *REMOTE_DEVICE_ID = "arduino1"; // change this to the device you want to watch
 const float ALARM_ON_C  = 30.0f; // buzzer turns ON above this...
 const float ALARM_OFF_C = 29.0f; // ...and OFF below this. The dead band between
                                  // the two stops a value hovering around 30 from
@@ -73,20 +73,23 @@ void setup() {
 
     // Must be called BEFORE begin() -- see AzureIoT.h for the full design.
     AzureIoT.setRemoteAccess(IOTC_REMOTE_APP_SUBDOMAIN, IOTC_REMOTE_API_TOKEN);
-    AzureIoT.onRemoteTelemetry("temperature", REMOTE_DEVICE_ID, onRemoteTemperature);
+    AzureIoT.onRemoteTelemetry("temperature", IOTC_REMOTE_DEVICE_ID, onRemoteTemperature);
 
     // Optional: how often to poll for the remote value (default 15000ms).
     // Fastest allowed is 1000ms -- see AzureIoT.h for why going faster than
     // that risks Azure's own shared, per-application rate limit, not just
-    // this device's resources.
-    // AzureIoT.setRemotePollInterval(15000);
+    // this device's resources. On Uno WiFi Rev2, if you see repeated
+    // "remote telemetry poll FAILED ... HTTP status -1", raise this (e.g.
+    // 60000) -- fewer TLS handshakes ease the WiFiNINA module's connection
+    // handling, which can otherwise get overwhelmed by frequent polling.
+    // AzureIoT.setRemotePollInterval(60000);
 
     // Because onRemoteTelemetry() was already called above, this runs in
     // PULL-ONLY MODE -- only WIFI_SSID/WIFI_PASSWORD actually matter here.
-    // IOTC_ID_SCOPE/IOTC_DEVICE_ID/IOTC_DEVICE_KEY are unused (this device
-    // never connects its own identity to Azure) -- config.h's placeholder
-    // values for those three are fine to leave exactly as they are.
-    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
+    // The device-identity args are ignored in this mode, so we pass empty
+    // strings (IOTC_ID_SCOPE/IOTC_DEVICE_ID/IOTC_DEVICE_KEY are commented
+    // out in config.h -- this device never connects its own identity).
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, "", "", "");
 }
 
 void loop() {

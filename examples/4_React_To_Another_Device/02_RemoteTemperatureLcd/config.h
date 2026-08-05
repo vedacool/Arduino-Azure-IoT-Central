@@ -17,13 +17,14 @@ static const char WIFI_SSID[]     = "<your-ssid>";
 static const char WIFI_PASSWORD[] = "<your-password>";
 
 // ---- Azure IoT Central device identity (THIS device's own connection) ----
-// NOT ACTUALLY USED by this example -- onRemoteTelemetry() is registered in
-// the .ino before begin(), which puts this device in PULL-ONLY MODE (Wi-Fi
-// only, no DPS/MQTT). Left as placeholders; begin() still requires something
-// be passed for these three, but their content is ignored in this mode.
-static const char IOTC_ID_SCOPE[]    = "<ID Scope, e.g. 0ne00XXXXXX>";
-static const char IOTC_DEVICE_ID[]   = "<Device ID>";
-static const char IOTC_DEVICE_KEY[]  = "<Primary or computed device key, base64>";
+// NOT USED by this example, so these are commented out on purpose. Because
+// onRemoteTelemetry() is registered in the .ino before begin(), this device
+// runs in PULL-ONLY MODE (Wi-Fi only, no DPS/MQTT), so it never provisions
+// an identity of its own. The .ino passes empty strings ("") for these
+// three. You do NOT need to fill anything in here -- leave them commented out.
+// static const char IOTC_ID_SCOPE[]    = "<ID Scope, e.g. 0ne00XXXXXX>";
+// static const char IOTC_DEVICE_ID[]   = "<Device ID>";
+// static const char IOTC_DEVICE_KEY[]  = "<Primary or computed device key, base64>";
 
 // ---- Remote telemetry access (a DIFFERENT credential -- see AzureIoT.h's
 // onRemoteTelemetry() for why this is separate from the device identity
@@ -33,5 +34,12 @@ static const char IOTC_DEVICE_KEY[]  = "<Primary or computed device key, base64>
 // is at "myapp.azureiotcentral.com", this is "myapp", not the full URL.
 static const char IOTC_REMOTE_APP_SUBDOMAIN[] = "<your-app-subdomain>";
 static const char IOTC_REMOTE_API_TOKEN[]     = "<SharedAccessSignature sr=...&sig=...&skn=...&se=...>";
+
+// The OTHER board whose "temperature" this board watches. Use its Device
+// *ID*, NOT its display name -- in IoT Central a device has a friendly
+// Device *name* (e.g. "arduino wifi uno rev2") AND a separate Device *ID*
+// (e.g. "arduino-wifi"); the REST API only accepts the ID. Copy it from
+// Devices > [that device], the "Device ID" field (lowercase, no spaces).
+static const char IOTC_REMOTE_DEVICE_ID[] = "<the OTHER board's Device ID, e.g. arduino1>";
 
 #endif

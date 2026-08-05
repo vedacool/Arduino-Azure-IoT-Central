@@ -1002,6 +1002,15 @@ static void pollRemoteTelemetry() {
         return;
     }
 
+    // Track connection-level (-1) failures across straight poll cycles so a
+    // wedged Wi-Fi module can be recovered below. static: survives between
+    // calls; reset on any success. s_remotePollHadSuccess gates the recovery
+    // to the "worked, then wedged" case only -- see the reinit block below.
+    static int s_remotePollConnFails = 0;
+    static bool s_remotePollHadSuccess = false;
+    bool anySuccess = false;
+    bool anyConnFail = false;
+
     for (size_t i = 0; i < s_remoteTelemetryCount; i++) {
         float value;
         int statusCode = 0;
@@ -1024,6 +1033,7 @@ static void pollRemoteTelemetry() {
             } else {
                 Serial.println(" (no timestamp in response -- can't confirm freshness this time)");
             }
+            anySuccess = true;
             s_remoteTelemetryRegs[i].callback(value);
         } else {
             Serial.print("AzureIoT: remote telemetry poll FAILED for '");
@@ -1033,6 +1043,7 @@ static void pollRemoteTelemetry() {
             Serial.print("' -- HTTP status ");
             Serial.print(statusCode);
             if (statusCode == -1) {
+                anyConnFail = true;
                 Serial.print(" (the HTTPS connection itself never completed -- a network/hardware-level failure, not Azure saying no. Check Wi-Fi signal");
                 if (s_pullOnlyMode) {
                     Serial.println(", and whether polling this frequently, sustained, is exhausting the Wi-Fi module's connection handling -- try a slower AzureIoT.setRemotePollInterval() if this keeps happening.)");
@@ -1046,6 +1057,42 @@ static void pollRemoteTelemetry() {
             } else {
                 Serial.println(" -- check your API token/app subdomain. Will retry next interval.");
             }
+        }
+    }
+
+    // Recover a wedged-but-"connected" Wi-Fi module. WiFiNINA leaks memory per
+    // TLS connect; eventually every connect() fails with -1 while WiFi.status()
+    // still reads WL_CONNECTED -- so loop()'s top-level "if not connected,
+    // reconnect" check never fires, and the polls fail forever. After several
+    // straight connection-level failures, force a module reinit here; loop()'s
+    // WiFi.status() check then re-associates on the next pass. (Only -1 --
+    // connection-level -- failures count; a 401/404 from Azure is not a wedged
+    // module and must not trigger a reinit loop.)
+    if (anySuccess) {
+        s_remotePollConnFails = 0;
+        s_remotePollHadSuccess = true; // this module has demonstrably worked at least once
+    } else if (anyConnFail) {
+        s_remotePollConnFails++;
+        // 4 straight failures = ~1 min at the default 15 s interval before we
+        // reinit -- long enough to rule out a transient blip, short enough to
+        // recover well within a workshop's attention span.
+        // Gated three ways ON PURPOSE:
+        //  - s_pullOnlyMode: in normal (MQTT) mode the module is carrying a
+        //    working MQTT connection; reinitializing it over remote-poll
+        //    failures would tear that down. Only the pull-only reader, whose
+        //    sole use of the module IS these polls, may reinit here.
+        //  - s_remotePollHadSuccess: only reinit if polling has worked at
+        //    least once ("worked, then wedged"). If it has NEVER succeeded,
+        //    the failure is almost certainly config (wrong app subdomain /
+        //    API token / device ID) -- a reinit can't fix that and would just
+        //    reconnect-loop pointlessly, so we keep logging the -1 instead.
+        //  - WiFi.status()==WL_CONNECTED: a genuine Wi-Fi outage is already
+        //    handled by loop()'s top-level reconnect; this path is only for
+        //    the wedged-but-"connected" case.
+        if (s_remotePollConnFails >= 4 && s_pullOnlyMode && s_remotePollHadSuccess && WiFi.status() == WL_CONNECTED) {
+            Serial.println("AzureIoT: remote poll failed at the connection level 4x in a row while Wi-Fi still reports connected -- reinitializing the Wi-Fi module to clear a wedged socket/TLS state (a known WiFiNINA per-connection leak; see DEVELOPMENT.md). loop() will re-associate automatically.");
+            platformWifiHardReinit();
+            s_remotePollConnFails = 0;
         }
     }
 }
