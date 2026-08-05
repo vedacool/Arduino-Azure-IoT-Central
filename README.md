@@ -89,7 +89,7 @@ The `examples/` folder is organised into **four groups** — they show up as sub
 
 1. **Start Here** — the connection test (no wiring).
 2. **Send To Cloud** — device → cloud telemetry (`publish()`).
-3. **Control From Cloud** — cloud → device, via writable properties (`onBoolProperty()`).
+3. **Control From Cloud** — cloud → device, via writable properties (`onBoolProperty()` / `onNumberProperty()`) and commands (`onCommand()`).
 4. **React To Another Device** — react to another device's telemetry (`onRemoteTelemetry()`).
 
 Within each group the examples are numbered roughly easiest-to-hardest. The sensor/actuator examples use **Seeed Studio Grove modules** on a **Grove Base Shield** atop an Arduino Uno WiFi Rev2 — the Uno pin numbers in the tables below are exactly right for that setup.
@@ -125,7 +125,7 @@ Within each group the examples are numbered roughly easiest-to-hardest. The sens
 | 17 | `PirMotion` | Digital motion detect, publishes 1/0 | Grove PIR Motion, D2 |
 | 18 | `ButtonLcd` | Button state shown on an LCD + published (needs LCD lib) | Grove Button D4 + Grove LCD (I2C) |
 
-### 3 · Control From Cloud — cloud → device (writable properties)
+### 3 · Control From Cloud — cloud → device (writable properties + commands)
 | # | Example | What it demonstrates | Hardware / pin (Uno) |
 |---|---|---|---|
 | 01 | `LedCloudControl` | First bidirectional — `onBoolProperty()` | Grove LED, D7 |
@@ -135,6 +135,9 @@ Within each group the examples are numbered roughly easiest-to-hardest. The sens
 | 05 | `ComfortAlarm` | Same pattern, harder DHT11 sensor | Temp & Humidity (D2) → Buzzer (D6) |
 | 06 | `ButtonLedTwoWaySync` | Hardest: sensor + actuator + two-way sync | Button (D4) + LED (D7) |
 | 07 | `LedLcdCloudControl` | Cloud toggle drives LED **and** shows state on an LCD (needs LCD lib) | Grove LED D7 + Grove LCD (I2C) |
+| 08 | `BuzzerOffCommand` | **Commands** (`onCommand()`) — buttons that fire an action every press, any state | Grove Buzzer, D6 |
+| 09 | `BlinkCommand` | Command **with a value** — blink N times (Integer request → `atoi`) | Grove LED, D7 |
+| 10 | `LedBrightnessSetting` | **Numeric** writable property (`onNumberProperty()`) — a remembered 0–255 level | Grove LED, PWM D3 |
 
 ### 4 · React To Another Device — react to another device's telemetry
 | # | Example | What it demonstrates | Hardware / pin (Uno) |
@@ -202,6 +205,38 @@ A few things worth knowing:
 - **The dashboard shows "Accepted" automatically.** After your callback returns, the library sends a full IoT Plug-and-Play-style acknowledgment (value, status, version) back to Azure — you don't write any of that yourself. (Confirmed against the real IoT Central UI: the toggle shows "Pending" until this ack arrives, then flips to "✓ Accepted".)
 - **Fixed cap of 16 registrations**, same reasoning and same number as `publish()`'s staged-keys limit: this library never heap-allocates, so an unbounded list isn't an option on a 6KB-RAM board, and 16 is generous headroom for any real project without that risk.
 - **If local logic (not the cloud) changes something the dashboard also controls** -- a physical button toggling an LED, a sensor threshold triggering a buzzer -- call `AzureIoT.reportBoolProperty(name, value)` to tell Azure about it, so the dashboard reflects the change instead of only showing whatever it last set itself. This sends a plain reported-property update, deliberately without the ack fields `onBoolProperty()`'s automatic response uses -- those specifically mean "responding to a particular desired-property version," which doesn't apply to a change nothing from the cloud asked for. See `03_ClapToToggleLed`, `04_AutoNightLight`, `05_ComfortAlarm`, and `06_ButtonLedTwoWaySync` (in *Control From Cloud*) for this in practice.
+
+## Cloud-to-device control: numeric properties
+
+`onNumberProperty()` is the numeric sibling of `onBoolProperty()` — a persistent numeric **setting** the dashboard sends down and the cloud remembers (a brightness level, a threshold, a target temperature), applied on reconnect exactly like the bool version:
+
+```cpp
+void onBrightness(float v) { analogWrite(LED_PIN, (int)v); }
+
+void setup() {
+    AzureIoT.onNumberProperty("brightness", onBrightness); // call BEFORE begin()
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
+}
+```
+
+In the template add a **writable property, schema Double**, then **Generate default views** + **Publish** (same as a bool toggle). The value arrives as a `float`. `reportNumberProperty(name, value)` reports a device-initiated change back — fire-and-forget (dropped if offline, unlike `reportBoolProperty`'s retry). See `10_LedBrightnessSetting`.
+
+## Cloud-to-device control: commands
+
+A **command** is a one-shot action triggered by a dashboard **button** (`onCommand()`). Unlike a property it carries no stored state — it fires *every* press, regardless of what happened before. That's the tool for "buzz off", "blink", "reboot": a property already set to "off" can't re-send "off" (no value change → nothing is pushed to the device), but a command always runs.
+
+```cpp
+void buzzerOff() { noTone(PIN_BUZZER); }                              // no parameter
+void blink(const char *request) { int n = atoi(request); /* ... */ } // command with a value
+
+void setup() {
+    AzureIoT.onCommand("buzzerOff", buzzerOff);   // call BEFORE begin()
+    AzureIoT.onCommand("blink", blink);
+    AzureIoT.begin(WIFI_SSID, WIFI_PASSWORD, IOTC_ID_SCOPE, IOTC_DEVICE_ID, IOTC_DEVICE_KEY);
+}
+```
+
+In the template add a **Command** capability with the matching Name — it shows as a **button**, no view to generate. For a command that carries a value, set its **Request schema to a primitive Integer**: IoT Central then delivers the bare value (`"3"`), which `atoi()` reads directly (an Object request arrives as JSON instead). The library auto-replies 200 after your handler returns. Commands need MQTT, so they don't run in pull-only mode. See `08_BuzzerOffCommand` and `09_BlinkCommand`.
 - **If MQTT isn't connected when you call `reportBoolProperty()`, it's staged and retried automatically** -- `AzureIoT.loop()` catches up on any pending reports once MQTT reconnects. Only the *latest* value per property name is kept (a fixed 16-slot table, same as `publish()`'s staged keys), so if the same property changes several times while offline, only the final value gets sent once reconnected -- not a backlog of every intermediate change.
 
 ---

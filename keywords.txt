@@ -9,6 +9,9 @@
 AzureIoT	KEYWORD1
 AzureIoTClass	KEYWORD1
 BoolPropertyCallback	KEYWORD1
+NumberPropertyCallback	KEYWORD1
+CommandCallback	KEYWORD1
+CommandCallbackWithArg	KEYWORD1
 RemoteTelemetryCallback	KEYWORD1
 
 #######################################
@@ -22,6 +25,9 @@ sendNow	KEYWORD2
 publishText	KEYWORD2
 onBoolProperty	KEYWORD2
 reportBoolProperty	KEYWORD2
+onNumberProperty	KEYWORD2
+reportNumberProperty	KEYWORD2
+onCommand	KEYWORD2
 setDpsGlobalHost	KEYWORD2
 setSasTokenLifetime	KEYWORD2
 setSendInterval	KEYWORD2

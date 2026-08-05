@@ -68,10 +68,23 @@ Almost everything lives in **Device templates → [your template] → Model** an
 
 > 📸 *Screenshot slot — `docs/img/add-capability.png`: the **+ Add capability** panel with Name, Capability type, and Schema filled in.*
 
-### B) Add a control switch (a writable property the *dashboard sets*)
+### B) Add a control switch (a writable *boolean* property the *dashboard sets*)
 Same steps 1–4 as above, then:
 5. **Capability type:** **Property**. **Schema:** **Boolean**. Tick **Writable**.
-6. **Save.**
+6. **Save.** Then do **C** below (Generate default views + Publish).
+
+### B2) Add a number setting (a writable *number* property)
+A persistent numeric value the cloud remembers (a brightness, a threshold). Same steps 1–4, then:
+5. **Capability type:** **Property**. **Schema:** **Double**. Tick **Writable**.
+6. **Save.** Then do **C** below — like a switch, a number property only appears on the device page after a view is generated. Used by `10_LedBrightnessSetting` (`brightness`).
+
+### B3) Add a command (a *button* that triggers an action)
+A one-shot action (not a stored value). Same steps 1–3, then:
+4. **Display name:** readable. **Name:** the exact command name from the sketch (e.g. `buzzerOff`).
+5. **Capability type:** **Command**.
+6. **Only if the command carries a value:** click the **˅** to expand the row → turn **Request** **On** → **Request Schema: Integer** (leave **Response** off).
+7. **Save**, then **Publish** (top bar).
+> A command shows as a **button** on the device page — **no "Generate default views" needed** (views are only for telemetry charts and property forms). Used by `08_BuzzerOffCommand` (`buzzerOn` / `buzzerOff`) and `09_BlinkCommand` (`blink`, Integer request).
 
 ### C) Make it appear + go live — do this after ANY change
 1. **Views** (left menu of the template) → **Generate default views** → **Generate**. This builds the charts for telemetry **and the form where writable switches appear**.
@@ -109,13 +122,28 @@ Add each **once**. *Telemetry* = a value the board reports; *Property (Writable)
 | `ledState` | **Property (Writable)** | Boolean | Control 01, 03, 04, 06, 07 |
 | `buzzerOn` | **Property (Writable)** | Boolean | Control 02 |
 | `muted` | Property (Writable) | Boolean | Control 05 |
+| `brightness` | **Property (Writable)** | Double | Control 10 |
 
-> ⚠️ **One name = one type.** `ledState` and `buzzerOn` are used *both* ways — a
-> **writable switch** in the Control examples and a plain **telemetry report** in some
-> Send examples (11 / 12 / 14). A template can't have the same name as both Telemetry
-> *and* Property, so add them as **writable Properties** (as above). Those Send
-> examples still send the values — you'll just see them under the device's **Raw data**
-> tab instead of as a chart tile. Everything else stays one-name-one-capability.
+**Commands** (add as **Capability type: Command** — a button, no view needed):
+
+| Name (must match exactly) | Request | Used by |
+|---|---|---|
+| `buzzerOn` *(command)* | *(none)* | Control 08 |
+| `buzzerOff` | *(none)* | Control 08 |
+| `blink` | Integer | Control 09 |
+
+> ⚠️ **One name = one type.** A template can't have the same name as more than one
+> capability type (Telemetry / Property / Command).
+> - `ledState` and `buzzerOn` are used *both* as a **writable switch** (Control examples)
+>   and a plain **telemetry report** in some Send examples (11 / 12 / 14) — add them as
+>   **writable Properties**; those Send examples still send the values, you'll just see
+>   them under the device's **Raw data** tab instead of as a chart tile.
+> - `buzzerOn` is *also* a **command** in Control 08. Since it's already a Property above,
+>   do the **command** examples (08) on a **fresh template/device**, or skip Control 02's
+>   `buzzerOn` property if you want the command on the same template. `buzzerOff` and
+>   `blink` don't collide with anything.
+>
+> Everything else stays one-name-one-capability.
 
 > 📟 The **React To Another Device** examples need **no capability on the reader
 > board** — instead you make an **API token** (steps are in those examples). The
@@ -384,11 +412,14 @@ procedures above to add it (or add everything up front from the table).*
 
 ---
 
-## 3 · Control From Cloud 📥 — the dashboard controls the board (`onBoolProperty()`)
+## 3 · Control From Cloud 📥 — the dashboard controls the board (properties + commands)
 
-> Every example here uses a **writable property**. Remember: after adding the property
-> you **must** do **Views → Generate default views → Publish**, or no toggle appears on
-> the device page.
+> Cloud→device comes in three flavors here: **writable boolean properties**
+> (`onBoolProperty`, examples 01–07), a **writable number property**
+> (`onNumberProperty`, example 10), and **commands** (`onCommand`, examples 08–09).
+> **Properties** are persistent settings — after adding one you **must** do **Views →
+> Generate default views → Publish**, or no control appears on the device page.
+> **Commands** are buttons — they need **no view**, just **Publish**.
 
 ### Control From Cloud · 01 — LED Cloud Control (`01_LedCloudControl`)
 **What it teaches:** The core Mode-2 pattern — a writable Boolean property on the dashboard turns a physical LED on and off, with no local logic deciding.
@@ -487,6 +518,48 @@ procedures above to add it (or add everything up front from the table).*
 **Use it:** before the first cloud value arrives the LCD shows "Waiting for cloud...". Open the generated view → flip **`ledState`** **On** → **Save**.
 **You'll see:** `matched registered property 'ledState' = true`; the LCD switches to "Cloud control: / LED: ON" with a **green** backlight and the LED lights. Flip **Off** + **Save** → "LED: OFF" with a **red** backlight (`= false`).
 **Try:** flip back and forth a few times and watch the backlight snap green/red — the LCD makes each cloud command visible even if you can't see the LED.
+
+### Control From Cloud · 08 — Buzzer Off Command (`08_BuzzerOffCommand`)
+**What it teaches:** **Commands** — dashboard buttons that fire an action *every* press, regardless of state. Two no-argument commands (`buzzerOn` / `buzzerOff`) start and stop a buzzer. Unlike a property, `buzzerOff` **always** silences it — even if the cloud already thought it was off (a property can't re-send a value that didn't change).
+**Hardware:** Uno WiFi Rev2 or ESP32 + Grove Buzzer. **Extra library:** None.
+**Wire it:**
+- **Uno WiFi Rev2 (+ Grove shield):** plug the Grove Buzzer into **D6**.
+- **ESP32:** **GPIO 4** (selected automatically — GPIO 6 is a flash pin).
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, click its **model** (the row tagged **Root**), then add **two** capabilities of **Capability type: Command** — Name **`buzzerOn`** and Name **`buzzerOff`** (no Request needed) → **Save** → **Publish**. Each shows as a **button** on the device page — **no Generate default views** needed for commands. *(If you already added a `buzzerOn` **property** in Control 02, use a fresh template/device — a name can't be both a property and a command.)*
+**In the Arduino IDE:**
+1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 08_BuzzerOffCommand**.
+2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
+**Use it:** on the device page, press **buzzerOn** → the buzzer sounds; press **buzzerOff** → silence. Press **buzzerOff** again — still silent (a command always runs; there's no "already off" that blocks it).
+**You'll see:** `matched command 'buzzerOff' ... invoking handler` in Serial and the tone stop; each button shows a success tick once the board replies 200.
+**Try:** press **buzzerOff** twice in a row — proof a command fires every time, unlike a property that only reacts when its value *changes*.
+
+### Control From Cloud · 09 — Blink Command (`09_BlinkCommand`)
+**What it teaches:** A **command that carries a value** — send a number, the board blinks an LED that many times. Shows reading a command's request parameter with `atoi()`.
+**Hardware:** Uno WiFi Rev2 or ESP32 + Grove LED. **Extra library:** None.
+**Wire it:**
+- **Uno WiFi Rev2 (+ Grove shield):** plug the Grove LED into **D7**.
+- **ESP32:** **GPIO 2** (the onboard LED, selected automatically — GPIO 7 is a flash pin).
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, click its **model** (Root), then **+ Add capability → Capability type: Command**, Name **`blink`**. Click the **˅** to expand the row → turn **Request** **On** → **Request Schema: Integer** (leave Response off) → **Save** → **Publish**. It shows as a **number box + Run** button on the device page. *(A primitive Integer request means the board receives the bare number, e.g. `3` — read directly by `atoi`.)*
+**In the Arduino IDE:**
+1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 09_BlinkCommand**.
+2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
+**Use it:** on the device page, type **3** into the `blink` box and click **Run** — the LED blinks 3 times.
+**You'll see:** `Command: blink x3` in Serial and three blinks; the button shows success once done. (Count is clamped to 1–10 so a big number can't block the connection.)
+**Try:** run it with different numbers and watch the blink count follow the value you send.
+
+### Control From Cloud · 10 — LED Brightness Setting (`10_LedBrightnessSetting`)
+**What it teaches:** A **writable *number* property** (`onNumberProperty`) — the dashboard sends a brightness level (0–255) the board applies via PWM, and the **cloud remembers it**. Unlike a command, it's a persistent setting: set it while the board is off and it's applied on reconnect.
+**Hardware:** Uno WiFi Rev2 or ESP32 + Grove LED on a **PWM** pin. **Extra library:** None.
+**Wire it:**
+- **Uno WiFi Rev2 (+ Grove shield):** plug the Grove LED into **D3** (a PWM-capable pin).
+- **ESP32:** **GPIO 2** (onboard LED, PWM via LEDC; selected automatically — GPIO 3 is Serial RX).
+**Set up in IoT Central (one-time):** Go to **Device templates**, open your template, click its **model** (Root), then **+ Add capability → Property** named exactly **`brightness`**, **Schema: Double**, tick **Writable** → **Save**. Then **Views → Generate default views** (a number property, like a switch, only shows after a view) → **Publish**. On the device page, enter a value **0–255** and click **Save**.
+**In the Arduino IDE:**
+1. **File → Examples → AzureIoT → 3_Control_From_Cloud → 10_LedBrightnessSetting**.
+2. Fill in `config.h`; **Upload**; **Serial Monitor at 9600 baud**; wait for `MQTT connected.`
+**Use it:** set **brightness** to `40` → **Save** → the LED glows dim; set `255` → full brightness; `0` → off.
+**You'll see:** `Brightness set from cloud: 40` in Serial, the LED change, and the property flip **Pending → Accepted**.
+**Try:** set a brightness, then reset the board — on reconnect it comes back at that same brightness by itself, because the cloud remembered the setting (a command couldn't do that).
 
 ---
 

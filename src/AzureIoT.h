@@ -214,6 +214,71 @@ public:
     // than queued/retried -- same "fire and forget" tradeoff as publish().
     void reportBoolProperty(const char *name, bool value);
 
+    // ---- Cloud-to-device control: writable NUMBER properties ----
+    //
+    // Exactly like onBoolProperty(), but for a NUMERIC setting the dashboard
+    // sends down and the cloud remembers -- a threshold, a brightness level,
+    // a target temperature. Like the bool version it is PERSISTENT: set while
+    // the device is offline and it's applied on the next reconnect (via the
+    // one-time twin GET). Use this (NOT a command) when the value is a SETTING
+    // the board should keep using, not a one-shot action.
+    //
+    //   void onBrightness(float v) { analogWrite(LED_PIN, (int)v); }
+    //
+    //   void setup() {
+    //     AzureIoT.onNumberProperty("brightness", onBrightness);  // BEFORE begin()
+    //     AzureIoT.begin(...);
+    //   }
+    //
+    // In the device template, add a WRITABLE property with schema **Double**
+    // (Integer works too, but Double avoids type-mismatch surprises, same as
+    // telemetry). The value is delivered to your callback as a float; cast it
+    // (e.g. (int)v for a PWM level). Same rules as onBoolProperty(): `name`
+    // must be a string literal (kept, not copied); the library auto-acks so
+    // the dashboard shows "Accepted"; max 16 registrations.
+    typedef void (*NumberPropertyCallback)(float value);
+    void onNumberProperty(const char *name, NumberPropertyCallback callback);
+
+    // Numeric counterpart to reportBoolProperty() -- call when LOCAL logic
+    // changes a value that's also a writable number property, so the dashboard
+    // reflects it. Fire-and-forget: dropped if MQTT isn't connected (unlike
+    // reportBoolProperty(), which retries) -- keep that in mind if the device
+    // changes it while offline.
+    void reportNumberProperty(const char *name, float value);
+
+    // ---- Cloud-to-device control: commands (one-shot actions) ----
+    //
+    // A COMMAND is an imperative action the dashboard triggers with a button
+    // ("buzz off", "blink", "reboot"). Unlike a writable property it carries
+    // NO stored state -- it fires every time it's invoked, regardless of what
+    // happened before. That's the key difference: a property that's already
+    // "off" can't send another "off" (the value didn't change, so nothing is
+    // pushed), but a command always runs. Use a command for an ACTION; use a
+    // property for a persistent STATE/SETTING.
+    //
+    // Two forms -- register either one, BEFORE begin():
+    //
+    //   void buzzerOff() { noTone(PIN_BUZZER); }              // no parameter
+    //   AzureIoT.onCommand("buzzerOff", buzzerOff);
+    //
+    //   void blink(const char *request) {                     // command WITH a value
+    //     int n = atoi(request);   // request is the bare value, e.g. "3"
+    //     ...
+    //   }
+    //   AzureIoT.onCommand("blink", blink);
+    //
+    // In the device template add a **Command** capability whose Name matches.
+    // For a command that carries a value, set its Request schema to a
+    // PRIMITIVE (e.g. Integer) -- IoT Central then delivers the bare value
+    // ("3"), which atoi()/atof() read directly. (An Object request would
+    // arrive as JSON instead.) Leave the Response empty; the library
+    // auto-replies 200 after your handler returns. Commands need MQTT, so they
+    // do nothing in pull-only mode. Max 8 registrations.
+    typedef void (*CommandCallback)();
+    typedef void (*CommandCallbackWithArg)(const char *request);
+    void onCommand(const char *name, CommandCallback callback);
+    void onCommand(const char *name, CommandCallbackWithArg callback);
+
     // ---- Optional tuning, call before begin() to override a default ----
 
     // DPS endpoint (default: the global Azure IoT Central endpoint). Only

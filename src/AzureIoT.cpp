@@ -54,9 +54,11 @@ static unsigned long s_lastMqttAttemptMillis = 0;
 // -- the drop-warning message text still says "16", which is harmless to leave
 // in sync by hand if this ever changes, unlike an array/guard mismatch (which
 // would overflow).
-static const size_t AZ_MAX_STAGED     = 16; // distinct telemetry keys staged by publish()
-static const size_t AZ_MAX_BOOL_PROPS = 16; // writable bool properties via onBoolProperty()
-static const size_t AZ_MAX_PENDING    = 16; // pending reported-property retries
+static const size_t AZ_MAX_STAGED       = 16; // distinct telemetry keys staged by publish()
+static const size_t AZ_MAX_BOOL_PROPS   = 16; // writable bool properties via onBoolProperty()
+static const size_t AZ_MAX_NUMBER_PROPS = 16; // writable number properties via onNumberProperty()
+static const size_t AZ_MAX_COMMANDS     = 8;  // commands via onCommand()
+static const size_t AZ_MAX_PENDING      = 16; // pending reported-property retries
 
 // Staged telemetry -- publish() writes here, flush() reads it and clears it.
 struct StagedValue { const char *key; float value; bool set; };
@@ -69,6 +71,25 @@ static size_t s_stagedCount = 0;
 struct BoolPropertyReg { const char *name; AzureIoTClass::BoolPropertyCallback callback; };
 static BoolPropertyReg s_boolProps[AZ_MAX_BOOL_PROPS];
 static size_t s_boolPropCount = 0;
+
+// Writable NUMBER properties -- onNumberProperty() registers here; matched
+// against incoming twin data the same way as s_boolProps[], but the value is
+// parsed as a float (extractJsonFloat) instead of a bool.
+struct NumberPropertyReg { const char *name; AzureIoTClass::NumberPropertyCallback callback; };
+static NumberPropertyReg s_numberProps[AZ_MAX_NUMBER_PROPS];
+static size_t s_numberPropCount = 0;
+
+// Commands (cloud-triggered one-shot actions -- IoT Hub direct methods).
+// onCommand() registers here. Exactly one of cb0/cb1 is set per entry: cb0
+// for the no-arg form, cb1 for the form that receives the request payload.
+struct CommandReg {
+    const char *name;
+    AzureIoTClass::CommandCallback cb0;        // no-arg handler, or nullptr
+    AzureIoTClass::CommandCallbackWithArg cb1; // handler taking the request string, or nullptr
+};
+static CommandReg s_commands[AZ_MAX_COMMANDS];
+static size_t s_commandCount = 0;
+
 static unsigned long s_twinRequestId = 0;
 static bool s_watchdogEnabled = false; // set by enableWatchdog() -- gates every platformWatchdogPet() call
 static bool s_pullOnlyMode = false; // set by begin() if onRemoteTelemetry() was registered first -- see begin()'s doc comment
@@ -279,10 +300,10 @@ static bool mqttConnectWithUsername(const char *username) {
     Serial.println(s_deviceId);
     if (s_mqttClient.connect(s_deviceId, username, s_sasToken)) {
         Serial.println("MQTT connected.");
-        if (s_boolPropCount > 0) {
+        if (s_boolPropCount > 0 || s_numberPropCount > 0) {
             // Only pay for the subscribe + twin GET round-trip if the sketch
-            // actually registered a property -- sketches that only publish()
-            // telemetry never touch this at all.
+            // actually registered a writable property (bool or number) --
+            // sketches that only publish() telemetry never touch this at all.
             bool sub1 = s_mqttClient.subscribe("$iothub/twin/PATCH/properties/desired/#");
             bool sub2 = s_mqttClient.subscribe("$iothub/twin/res/#");
             if (!sub1 || !sub2) {
@@ -293,6 +314,15 @@ static bool mqttConnectWithUsername(const char *username) {
                 Serial.println("). Writable properties will not work until this succeeds -- check PubSubClient's MQTT_MAX_PACKET_SIZE / subscription limits.");
             }
             requestFullTwin();
+        }
+        if (s_commandCount > 0) {
+            // Commands (direct methods) use their own topic, independent of
+            // the twin subscribe above -- a sketch can register commands
+            // without any properties, or both.
+            bool subCmd = s_mqttClient.subscribe("$iothub/methods/POST/#");
+            if (!subCmd) {
+                Serial.println("AzureIoT: WARNING -- command topic subscribe failed. Commands will not work until this succeeds -- check PubSubClient's MQTT_MAX_PACKET_SIZE / subscription limits.");
+            }
         }
         return true;
     }
@@ -473,6 +503,28 @@ static bool extractJsonNumber(const char *json, const char *key, unsigned long *
     return true;
 }
 
+// Same idea, for a JSON number parsed as a float -- used for writable NUMBER
+// properties (onNumberProperty). strtod(), not strtof(): some avr-libc
+// versions don't declare strtof() at all (see the same note in
+// remote_telemetry.cpp), so parse as double and cast down.
+static bool extractJsonFloat(const char *json, const char *key, float *out) {
+    char pattern[40];
+    int pn = snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    if (pn < 0 || (size_t)pn >= sizeof(pattern)) return false; // key too long to match safely
+    const char *p = strstr(json, pattern);
+    if (!p) return false;
+    p += strlen(pattern);
+    p = strchr(p, ':');
+    if (!p) return false;
+    p++;
+    while (*p == ' ') p++;
+    char *endptr;
+    double v = strtod(p, &endptr);
+    if (endptr == p) return false;
+    *out = (float)v;
+    return true;
+}
+
 // Reports a full IoT Plug-and-Play-style acknowledgment for one property, so
 // IoT Central's dashboard shows "Accepted" rather than stuck "Pending". `name`
 // is one of the string literals passed to onBoolProperty() (short by
@@ -511,6 +563,94 @@ static void ackBoolProperty(const char *name, bool value, unsigned long version)
     Serial.println(ok ? "publish() OK" : "publish() FAILED");
 }
 
+// Numeric counterpart to ackBoolProperty() -- same ac/av/ad envelope, value
+// formatted via formatFloat2dp() (AVR snprintf can't do %f -- see that
+// function). Keeps the dashboard from showing a number property stuck
+// "Pending".
+static void ackNumberProperty(const char *name, float value, unsigned long version) {
+    char topic[64];
+    int topicLen = snprintf(topic, sizeof(topic), "$iothub/twin/PATCH/properties/reported/?$rid=%lu", ++s_twinRequestId);
+    if (topicLen <= 0 || (size_t)topicLen >= sizeof(topic)) {
+        Serial.println("AzureIoT: internal error building ack topic -- dropped.");
+        return;
+    }
+    char valueStr[24];
+    int vn = formatFloat2dp(valueStr, sizeof(valueStr), value);
+    if (vn <= 0 || (size_t)vn >= sizeof(valueStr)) {
+        Serial.println("AzureIoT: number ack value format failed -- dropped.");
+        return;
+    }
+    char payload[160];
+    int n = snprintf(payload, sizeof(payload),
+                      "{\"%s\":{\"value\":%s,\"ac\":200,\"av\":%lu,\"ad\":\"completed\"}}",
+                      name, valueStr, version);
+    if (n <= 0 || (size_t)n >= sizeof(payload)) {
+        Serial.println("AzureIoT: property name too long to ack -- dropped.");
+        return;
+    }
+    bool ok = s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)n);
+    Serial.print("AzureIoT: sent ack for '");
+    Serial.print(name);
+    Serial.print("' -- ");
+    Serial.println(ok ? "publish() OK" : "publish() FAILED");
+}
+
+// Sends a command (direct-method) response so IoT Central's button resolves
+// instead of waiting for its timeout. status is the HTTP-style code (200 ok,
+// 404 no such command); the response body is empty (we don't model command
+// responses -- see onCommand() in AzureIoT.h).
+static void sendCommandResponse(const char *rid, int status) {
+    char topic[64]; // "$iothub/methods/res/{status}/?$rid={rid}"
+    int n = snprintf(topic, sizeof(topic), "$iothub/methods/res/%d/?$rid=%s", status, rid);
+    if (n <= 0 || (size_t)n >= sizeof(topic)) {
+        Serial.println("AzureIoT: internal error building command response topic -- dropped.");
+        return;
+    }
+    bool ok = s_mqttClient.publish(topic, (const uint8_t *)"", 0);
+    Serial.print("AzureIoT: command response ");
+    Serial.print(status);
+    Serial.println(ok ? " sent." : " FAILED to send.");
+}
+
+// Dispatches an incoming command (direct method). Topic shape:
+//   $iothub/methods/POST/{name}/?$rid={rid}
+// Matches {name} against the onCommand() registrations, invokes the handler
+// (no-arg or with the request body), and always replies -- 200 on a match,
+// 404 if no handler is registered for that name (so the dashboard shows a
+// clear failure instead of a timeout).
+static void handleCommand(const char *topic, const char *body) {
+    const char *nameStart = topic + 21; // strlen("$iothub/methods/POST/")
+    const char *nameEnd = strchr(nameStart, '/');
+    if (!nameEnd) {
+        Serial.println("AzureIoT: (malformed command topic -- no '/' after the method name, ignoring)");
+        return;
+    }
+    size_t nameLen = (size_t)(nameEnd - nameStart);
+
+    const char *ridMarker = strstr(topic, "$rid=");
+    const char *rid = ridMarker ? ridMarker + 5 : ""; // rid is the last thing in the topic -> NUL-terminated
+
+    for (size_t i = 0; i < s_commandCount; i++) {
+        if (strlen(s_commands[i].name) == nameLen &&
+            strncmp(s_commands[i].name, nameStart, nameLen) == 0) {
+            Serial.print("AzureIoT: matched command '");
+            Serial.print(s_commands[i].name);
+            Serial.print("' (request: ");
+            Serial.print(body[0] ? body : "<none>");
+            Serial.println(") -- invoking handler.");
+            if (s_commands[i].cb1) {
+                s_commands[i].cb1(body);
+            } else if (s_commands[i].cb0) {
+                s_commands[i].cb0();
+            }
+            sendCommandResponse(rid, 200);
+            return;
+        }
+    }
+    Serial.println("AzureIoT: (command received, but no matching onCommand() registration -- replying 404)");
+    sendCommandResponse(rid, 404);
+}
+
 // Requests the full current twin once per connection, so a dashboard toggle
 // flipped while the device was offline is picked up immediately on
 // reconnect, rather than waiting for the next change. Response arrives
@@ -528,20 +668,23 @@ static void requestFullTwin() {
     Serial.println(") -- watching for a response on $iothub/twin/res/#.");
 }
 
-// PubSubClient's message callback. Handles two message shapes:
+// PubSubClient's message callback. Handles three message shapes:
+//  - "$iothub/methods/POST/{name}/?$rid=..." -- a command (direct method)
+//    invoked from the dashboard; dispatched to handleCommand() which replies.
 //  - "$iothub/twin/res/..."  -- response to our own requestFullTwin() GET
 //    (full twin doc: {"desired":{...},"reported":{...}}), OR the empty ack
 //    for our own ackBoolProperty() push (which we simply ignore).
 //  - "$iothub/twin/PATCH/properties/desired/..." -- an incremental change
 //    pushed live while connected (just the changed keys, e.g.
-//    {"ledState":true,"$version":6}).
+//    {"ledState":true,"$version":6}). Matched against both bool and number
+//    property registrations.
 // Not a full JSON parser (same philosophy as dps_client.cpp): for the twin
 // GET response, "desired" appears before "reported" in Azure's twin JSON, so
 // searching from that point on reliably reaches the right section without
 // needing real nested-object parsing -- confirmed against Azure's
 // documented twin JSON shape, not just assumed.
 static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int length) {
-    if (s_boolPropCount == 0) return; // no sketch-registered properties to match against
+    if (s_boolPropCount == 0 && s_numberPropCount == 0 && s_commandCount == 0) return; // nothing registered to match against
 
     // Sized per-arch: ESP32 matches the full 1024-byte MQTT buffer (ample
     // RAM), megaAVR uses a smaller frame to stay safe on 6KB SRAM inside this
@@ -565,6 +708,18 @@ static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int leng
     Serial.print(length);
     Serial.print(" bytes): ");
     Serial.println(body);
+
+    // A command (direct method) arrives on its own topic -- dispatch and done.
+    if (s_commandCount > 0 && strncmp(topic, "$iothub/methods/POST/", 21) == 0) {
+        handleCommand(topic, body);
+        return;
+    }
+
+    // Everything past here is twin (writable-property) handling only.
+    if (s_boolPropCount == 0 && s_numberPropCount == 0) {
+        Serial.println("AzureIoT: (ignored -- only commands are registered, and this isn't a command message)");
+        return;
+    }
 
     bool isTwinRes = strncmp(topic, "$iothub/twin/res/", 17) == 0;
     bool isDesiredPatch = strncmp(topic, "$iothub/twin/PATCH/properties/desired", 37) == 0;
@@ -626,6 +781,21 @@ static void mqttMessageCallback(char *topic, uint8_t *payload, unsigned int leng
             Serial.println(" -- invoking callback and sending ack.");
             s_boolProps[i].callback(value);
             ackBoolProperty(s_boolProps[i].name, value, version);
+        }
+    }
+    for (size_t i = 0; i < s_numberPropCount; i++) {
+        float value;
+        if (extractJsonFloat(searchIn, s_numberProps[i].name, &value)) {
+            matchedAny = true;
+            Serial.print("AzureIoT: matched registered number property '");
+            Serial.print(s_numberProps[i].name);
+            Serial.print("' = ");
+            Serial.print(value);
+            Serial.print(", version=");
+            Serial.print(version);
+            Serial.println(" -- invoking callback and sending ack.");
+            s_numberProps[i].callback(value);
+            ackNumberProperty(s_numberProps[i].name, value, version);
         }
     }
     if (!matchedAny) {
@@ -775,8 +945,8 @@ void AzureIoTClass::begin(const char *wifiSsid, const char *wifiPassword,
     if (s_remoteTelemetryCount > 0) {
         s_pullOnlyMode = true;
         Serial.println("AzureIoT: onRemoteTelemetry() was registered -- running in PULL-ONLY mode (Wi-Fi only, no DPS/MQTT). This device will not send its own telemetry or receive properties. See AzureIoT.h's begin() doc comment for why.");
-        if (s_boolPropCount > 0) {
-            Serial.println("AzureIoT: WARNING -- onBoolProperty() was also registered, but properties require MQTT, which pull-only mode doesn't use. Those registrations will never fire.");
+        if (s_boolPropCount > 0 || s_numberPropCount > 0 || s_commandCount > 0) {
+            Serial.println("AzureIoT: WARNING -- onBoolProperty()/onNumberProperty()/onCommand() were also registered, but properties and commands require MQTT, which pull-only mode doesn't use. Those registrations will never fire.");
         }
         connectWiFi();
         return;
@@ -911,6 +1081,40 @@ void AzureIoTClass::onBoolProperty(const char *name, BoolPropertyCallback callba
         s_boolPropCount++;
     } else {
         Serial.println("AzureIoT.onBoolProperty: too many properties registered (max 16) -- dropped.");
+    }
+}
+
+void AzureIoTClass::onNumberProperty(const char *name, NumberPropertyCallback callback) {
+    if (s_numberPropCount < AZ_MAX_NUMBER_PROPS) {
+        s_numberProps[s_numberPropCount].name = name;
+        s_numberProps[s_numberPropCount].callback = callback;
+        s_numberPropCount++;
+    } else {
+        Serial.println("AzureIoT.onNumberProperty: too many properties registered (max 16) -- dropped.");
+    }
+}
+
+// Two overloads share one registry slot: the no-arg form leaves cb1 null, the
+// with-request form leaves cb0 null. handleCommand() calls whichever is set.
+void AzureIoTClass::onCommand(const char *name, CommandCallback callback) {
+    if (s_commandCount < AZ_MAX_COMMANDS) {
+        s_commands[s_commandCount].name = name;
+        s_commands[s_commandCount].cb0 = callback;
+        s_commands[s_commandCount].cb1 = nullptr;
+        s_commandCount++;
+    } else {
+        Serial.println("AzureIoT.onCommand: too many commands registered (max 8) -- dropped.");
+    }
+}
+
+void AzureIoTClass::onCommand(const char *name, CommandCallbackWithArg callback) {
+    if (s_commandCount < AZ_MAX_COMMANDS) {
+        s_commands[s_commandCount].name = name;
+        s_commands[s_commandCount].cb0 = nullptr;
+        s_commands[s_commandCount].cb1 = callback;
+        s_commandCount++;
+    } else {
+        Serial.println("AzureIoT.onCommand: too many commands registered (max 8) -- dropped.");
     }
 }
 
@@ -1138,6 +1342,39 @@ void AzureIoTClass::reportBoolProperty(const char *name, bool value) {
     // else: left pending -- retryPendingReports() (called from loop()) will
     // catch it once MQTT reconnects, rather than the change being lost
     // outright the way it would have been before this retry buffer existed.
+}
+
+// Numeric reported-property send. Fire-and-forget (no retry buffer, unlike
+// reportBoolProperty) -- a device-initiated numeric report is rare enough
+// that the extra 16-slot table isn't worth the RAM; documented in AzureIoT.h.
+static bool sendReportedNumberProperty(const char *name, float value) {
+    if (!s_mqttClient.connected()) return false;
+    char topic[64]; // see ackBoolProperty() for the headroom reasoning
+    int topicLen = snprintf(topic, sizeof(topic), "$iothub/twin/PATCH/properties/reported/?$rid=%lu", ++s_twinRequestId);
+    if (topicLen <= 0 || (size_t)topicLen >= sizeof(topic)) {
+        Serial.println("AzureIoT: internal error building report topic -- dropped.");
+        return false;
+    }
+    char valueStr[24];
+    int vn = formatFloat2dp(valueStr, sizeof(valueStr), value);
+    if (vn <= 0 || (size_t)vn >= sizeof(valueStr)) return false;
+    char payload[64];
+    int n = snprintf(payload, sizeof(payload), "{\"%s\":%s}", name, valueStr);
+    if (n <= 0 || (size_t)n >= sizeof(payload)) {
+        Serial.println("AzureIoT.reportNumberProperty: property name too long -- dropped.");
+        return false;
+    }
+    return s_mqttClient.publish(topic, (const uint8_t *)payload, (unsigned int)n);
+}
+
+void AzureIoTClass::reportNumberProperty(const char *name, float value) {
+    if (s_pullOnlyMode) {
+        Serial.println("AzureIoT.reportNumberProperty: this device is in pull-only mode -- no MQTT. Ignored.");
+        return;
+    }
+    if (!sendReportedNumberProperty(name, value)) {
+        Serial.println("AzureIoT.reportNumberProperty: MQTT not connected or send failed -- dropped (fire-and-forget, like publish()).");
+    }
 }
 
 void AzureIoTClass::setDpsGlobalHost(const char *host) {

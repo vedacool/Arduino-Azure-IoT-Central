@@ -156,6 +156,15 @@ switch for the LED projects.
 >
 > Add as **Property → Writable → Boolean** (the dashboard switches, used by the
 > *Control From Cloud* examples): `ledState` · `buzzerOn` · `muted`.
+>
+> Add as **Property → Writable → Double** (a number setting the cloud remembers,
+> `onNumberProperty`): `brightness` (Control 10).
+>
+> Add as **Command** (a dashboard *button*, `onCommand` — no view needed, just
+> Publish): `buzzerOn` · `buzzerOff` (Control 08), and `blink` (Control 09, with a
+> **Request** of Schema **Integer**). Note: a name can be a Property *or* a Command,
+> not both — so if you added `buzzerOn` as a property above, do the command examples
+> on a separate template/device.
 
 ### B4. Create a device and get your credentials
 1. **Devices → + New**.
@@ -235,13 +244,13 @@ Azure values as Part C) → wire the part → upload → watch.**
 > 📖 **Want the full click-by-click steps for a *specific* example** (exact wiring,
 > the exact IoT Central capability/property to add, and what you'll see)? The
 > **[Example Cookbook → GUIDE.md](GUIDE.md)** has a complete, self-contained
-> walkthrough for **all 28 examples**. This Part D teaches the *ideas* behind each
+> walkthrough for **all 31 examples**. This Part D teaches the *ideas* behind each
 > mode; the cookbook is the per-example recipe.
 
 | Mode | Direction | The one call | Example to start with |
 |---|---|---|---|
 | **1** | Device → Cloud (send readings up) 📤 | `AzureIoT.publish()` | `01_TouchSensor` |
-| **2** | Cloud → Device (dashboard controls the board) 📥 | `AzureIoT.onBoolProperty()` | `01_LedCloudControl` ⭐ |
+| **2** | Cloud → Device (dashboard controls the board) 📥 | `onBoolProperty()` / `onNumberProperty()` (settings) · `onCommand()` (buttons) | `01_LedCloudControl` ⭐ |
 | **3** | Azure data → Device reacts (react to *another* device) 🔁 | `AzureIoT.onRemoteTelemetry()` | `01_RemoteTemperatureAlarm` |
 
 > 🔌 **Wiring note.** The examples are built for **Grove modules on a Grove Base
@@ -317,6 +326,18 @@ the **`ledState`** switch from your template (Part B3).
 - **`03` / `04` / `05`** — the board's *own* logic (a clap, a light level, a
   temperature) **plus** a cloud override. **`06_ButtonLedTwoWaySync`** — a physical
   button **and** the dashboard both control one LED and stay in sync (the hardest).
+
+**Beyond on/off toggles — two more ways the cloud can control the board:**
+- **A number setting** — **`10_LedBrightnessSetting`** uses `onNumberProperty()`: the
+  dashboard sends a **brightness (0–255)** the board applies, and (like a toggle) the
+  cloud **remembers** it across reboots. Add it as a **writable property, Schema
+  Double**, then generate views + publish — same flow as `ledState`.
+- **Commands (buttons)** — **`08_BuzzerOffCommand`** and **`09_BlinkCommand`** use
+  `onCommand()`. A command is a **button that fires an action every press**, no matter
+  the current state — the fix for "the buzzer is on but the toggle already says off, so
+  I can't turn it off." Add these as **Command** capabilities (not properties); a
+  command needs **no view**, just Publish. `09_BlinkCommand` carries a value (give its
+  Request the Schema **Integer**). See the [cookbook](GUIDE.md) for the exact clicks.
 
 ---
 
