@@ -274,6 +274,12 @@ public:
     // arrive as JSON instead.) Leave the Response empty; the library
     // auto-replies 200 after your handler returns. Commands need MQTT, so they
     // do nothing in pull-only mode. Max 8 registrations.
+    //
+    // Keep your handler SHORT -- it runs inside loop()'s MQTT servicing, so a
+    // handler that blocks for many seconds will delay MQTT keepalive (drops the
+    // connection past ~15s) and, if enableWatchdog() is on, can trip the ~8s
+    // watchdog mid-command. For a long action, set a flag and do the work back
+    // in loop(). (See 09_BlinkCommand, which caps its blink count for this.)
     typedef void (*CommandCallback)();
     typedef void (*CommandCallbackWithArg)(const char *request);
     void onCommand(const char *name, CommandCallback callback);

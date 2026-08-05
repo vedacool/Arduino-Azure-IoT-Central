@@ -36,7 +36,10 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
                    const char *dpsGlobalHost, const char *modelId, DpsResult &out) {
     // resourceUri for DPS = "{idScope}/registrations/{deviceId}"
     char resourceUri[160];
-    snprintf(resourceUri, sizeof(resourceUri), "%s/registrations/%s", idScope, deviceId);
+    int ruLen = snprintf(resourceUri, sizeof(resourceUri), "%s/registrations/%s", idScope, deviceId);
+    if (ruLen <= 0 || (size_t)ruLen >= sizeof(resourceUri)) {
+        return false; // idScope/deviceId too long -- fail rather than sign a truncated resourceUri (Azure would reject it anyway)
+    }
 
     unsigned long expiry = platformGetUnixTime() + 3600UL;
     char sasToken[300];
@@ -44,12 +47,17 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
         return false;
     }
 
-    // 260 (not 200): this buffer is reused for the longer poll path in the
+    // 300 (not 200): this buffer is reused for the longer poll path in the
     // loop below, once the register path is no longer needed -- avoids a
-    // second 260-byte stack buffer on the tight 6KB megaAVR provisioning frame.
-    char path[260];
-    snprintf(path, sizeof(path), "/%s/registrations/%s/register?api-version=%s",
+    // second stack buffer on the tight 6KB megaAVR provisioning frame. Sized
+    // for the worst-case poll path: idScope + deviceId(64) + operationId(128)
+    // + fixed text -- ~272 bytes, so 300 gives real headroom.
+    char path[300];
+    int regPathLen = snprintf(path, sizeof(path), "/%s/registrations/%s/register?api-version=%s",
              idScope, deviceId, DPS_API_VERSION);
+    if (regPathLen <= 0 || (size_t)regPathLen >= sizeof(path)) {
+        return false; // register path too long -- fail rather than PUT a truncated (invalid) path
+    }
 
     // 260, not 80: with a modelId, the body is
     // {"registrationId":"...","payload":{"modelId":"..."}} -- the fixed
@@ -91,10 +99,13 @@ bool dpsProvision(const char *idScope, const char *deviceId, const char *deviceK
         delay(2000); // DPS typically asks for ~2s between polls (Retry-After)
 
         // Reuse `path` (the register path isn't needed once the PUT above
-        // returned) rather than a second 260-byte stack buffer here.
-        snprintf(path, sizeof(path),
+        // returned) rather than a second stack buffer here.
+        int pollPathLen = snprintf(path, sizeof(path),
                  "/%s/registrations/%s/operations/%s?api-version=%s",
                  idScope, deviceId, operationId, DPS_API_VERSION);
+        if (pollPathLen <= 0 || (size_t)pollPathLen >= sizeof(path)) {
+            return false; // operationId too long to fit -- fail rather than poll a truncated (non-existent) operation forever
+        }
 
         SecureWiFiClient pollClient;
         int pollStatus = azureiot_http_request(pollClient, dpsGlobalHost, "GET", path, sasToken, nullptr, 0,
